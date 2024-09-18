@@ -1,0 +1,27 @@
+{
+    "api": "http://127.0.0.1:7860",
+    "dir_i": "Your/Path/data/input",
+    "dir_o": "Your/Path/data/output",
+    "accept_types": [
+        ".png", ".jpg", ".jpeg", ".webp"
+    ],
+
+    "dino_config": "models/grounding-dino/GroundingDINO_SwinT_OGC.py",
+    "dino_model": "models/grounding-dino/groundingdino_swint_ogc.pth",
+    "dino_prompt": "split.prompts.with.dot.",
+    "sam_model": "models/sam/sam_vit_b_01ec64.pth",
+    "sam_model_type": "vit_b",
+    "mask_gen_device": "cuda",
+
+    "output_name_format": "{}_out[{}].png",
+
+    "model": "",
+
+    "ctrlnet_model": "control_v11p_sd15_inpaint [ebff9138]",
+    "ctrlnet_module": "inpaint_only",
+
+    "pos_prompt": "",
+    "neg_prompt": "",
+
+    "resize_longer_side": 768
+}

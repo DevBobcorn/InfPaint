@@ -57,6 +57,9 @@ def combine_masks_as_tensor(mask_tensor: torch.Tensor) -> torch.Tensor:
 
 def combine_masks_as_ndarray(mask_tensor: torch.Tensor) -> np.ndarray:
     # mask_tensor: BxCxHxW, B is count of separate masks predicted by SAM
+
+
+    
     B, C, H, W = mask_tensor.shape
     combined_masks = np.zeros((H, W))
 
@@ -140,7 +143,7 @@ def get_dots_from_box_and_mask(box: torch.Tensor, sam_target_mask: torch.Tensor)
 
     m_dot_list = []
 
-    for _ in range(5):
+    for _ in range(3):
         accepted = False
         while not accepted:
             i_w = random.randint(0, box_w - 1)
@@ -255,10 +258,10 @@ def generate_mask(image_path:str, text_prompt:str, dilate_amount:int = 0,
                 print(dot)
                 dx, dy = dot[0], dot[1]
 
-                for xi in range(-29, 30):
-                    for yi in range(-29, 30):
+                for xi in range(-19, 20):
+                    for yi in range(-19, 20):
                         if dx + xi >= 0 and dx + xi < w and dy + yi >= 0 and dy + yi < h:
-                            image_np_annotated[dy + yi, dx + xi] = [xi % 255, 127, yi % 255]
+                            image_np_annotated[dy + yi, dx + xi] = [255, 127, 255]
 
         plt.imshow(image_np_annotated)
         plt.show()

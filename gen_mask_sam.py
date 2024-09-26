@@ -21,14 +21,14 @@ torch.set_warn_always(False)
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
 
+device = conf['mask_gen_device']
+
 # Load the Grounding DINO model
 dino_model = load_dino_model(conf['dino_config'], conf['dino_model'])
 
 # Load the SAM model
 sam_checkpoint = conf['sam_model']
 sam_model_type = conf['sam_model_type']
-
-device = conf['mask_gen_device']
 
 sam = sam_model_registry[sam_model_type](checkpoint=sam_checkpoint)
 sam.to(device=device)
@@ -43,7 +43,7 @@ def check_box_text_prompt(box_prompts: str, check_prompts: list[str]) -> bool:
     return False
 
 def combine_masks_as_tensor(mask_tensor: torch.Tensor) -> torch.Tensor:
-    # mask_tensor: BxCxHxW, C is count of separate masks predicted by SAM
+    # mask_tensor: BxCxHxW, B is count of separate masks predicted by SAM
 
     combined: torch.Tensor = torch.max(mask_tensor, dim=1, keepdim=True).values
     print(f'Combine as tensor: {mask_tensor.size()} -> {combined.size()}')
@@ -56,7 +56,7 @@ def combine_masks_as_tensor(mask_tensor: torch.Tensor) -> torch.Tensor:
     return combined
 
 def combine_masks_as_ndarray(mask_tensor: torch.Tensor) -> np.ndarray:
-    # Assuming mask_tensor is a numpy array of shape (B, C, H, W)
+    # mask_tensor: BxCxHxW, B is count of separate masks predicted by SAM
     B, C, H, W = mask_tensor.shape
     combined_masks = np.zeros((H, W))
 
@@ -89,7 +89,7 @@ def generate_sam_target_mask(image_path:str, text_prompt:str) -> torch.Tensor:
     image_np, image_as_tensor = load_image(image_path)
     
     # Predict the bounding boxes and labels using Grounding DINO
-    boxes, logits, phrases = predict(dino_model, image_as_tensor, text_prompt, 0.3, 0.3)
+    boxes, logits, captions = predict(dino_model, image_as_tensor, text_prompt, 0.3, 0.3)
 
     h, w, _ = image_np.shape
 
@@ -100,26 +100,31 @@ def generate_sam_target_mask(image_path:str, text_prompt:str) -> torch.Tensor:
     sam_boxes = deepcopy(boxes)
 
     for i in range(sam_boxes.size(0)):
-        sam_boxes[i] = sam_boxes[i] * torch.Tensor([w, h, w, h])
+        sam_boxes[i] = sam_boxes[i] * torch.Tensor([w, h, w, h]) # Convert from normalized to original size
+        # CxCyHW -> XYXY
         sam_boxes[i][:2] -= sam_boxes[i][2:] / 2
         sam_boxes[i][2:] += sam_boxes[i][:2]
 
     if boxes.shape[0] > 0:
-        sam_boxes = sam_predictor.transform.apply_boxes_torch(sam_boxes, image_np.shape[:2])
+        sam_boxes = sam_predictor.transform.apply_boxes_torch(sam_boxes, image_np.shape[:2]).to(device)
+        print(f'Grounding DINO got {boxes.shape[0]} boxes.')
     else:
         print('No boxes are detected by Grounding DINO, please check the threshold value.')
         return
-
-    sam_boxes = sam_boxes.to(device)
  
     # Generate masks using SAM
     masks, _, _ = sam_predictor.predict_torch(None, None, sam_boxes, None, False)
 
     # Combine masks into one ndarray
-    return combine_masks_as_tensor(masks)
+    combined = combine_masks_as_tensor(masks)
+
+    plt.imshow(np.squeeze(np.squeeze(combined.numpy(), 0), 0))
+    plt.show()
+
+    return combined
 
 def get_dots_from_box_and_mask(box: torch.Tensor, sam_target_mask: torch.Tensor):
-    im_size = sam_target_mask.size()
+    im_size = sam_target_mask.size() # BxCxHxW
     print(f'Mask size: {im_size}')
 
     h = im_size[2]
@@ -131,7 +136,7 @@ def get_dots_from_box_and_mask(box: torch.Tensor, sam_target_mask: torch.Tensor)
     box_y = int(box_xywh[1])
     box_w = int(box_xywh[2])
     box_h = int(box_xywh[3])
-    print(f'Box: X: {box_x}, Y: {box_y}, W: {box_w}, H: {box_h}')
+    #print(f'Box: X: {box_x}, Y: {box_y}, W: {box_w}, H: {box_h}')
 
     m_dot_list = []
 
@@ -176,7 +181,7 @@ def generate_mask(image_path:str, text_prompt:str, dilate_amount:int = 0,
 
     random.seed(42)
 
-    # Drop those boxes whose phrase is set to be processed as points
+    # Drop those boxes whose caption is set to be processed as points
     for i in range(boxes.size(0)):
         print(f'box[{i}]: {captions[i]}')
 
@@ -193,7 +198,7 @@ def generate_mask(image_path:str, text_prompt:str, dilate_amount:int = 0,
     # Stack them up as one Tensor. https://discuss.pytorch.org/t/how-to-convert-a-list-of-tensors-to-a-pytorch-tensor/175666
     sam_boxes = torch.stack(sam_box_list, dim=0) # Bx4, Mask count * CxCyHW
     for i in range(sam_boxes.size(0)): 
-        sam_boxes[i] = sam_boxes[i] * torch.Tensor([w, h, w, h]) # Normalized to original size
+        sam_boxes[i] = sam_boxes[i] * torch.Tensor([w, h, w, h]) # Convert from normalized to original size
         # CxCyHW -> XYXY
         sam_boxes[i][:2] -= sam_boxes[i][2:] / 2
         sam_boxes[i][2:] += sam_boxes[i][:2]
@@ -203,7 +208,7 @@ def generate_mask(image_path:str, text_prompt:str, dilate_amount:int = 0,
     if len(sam_dot_box_list) > 0:
         sam_dot_boxes = torch.stack(sam_dot_box_list, dim=0) # Bx4, Mask count * CxCyHW
         for i in range(sam_dot_boxes.size(0)): 
-            sam_dot_boxes[i] = sam_dot_boxes[i] * torch.Tensor([w, h, w, h]) # Normalized to original size
+            sam_dot_boxes[i] = sam_dot_boxes[i] * torch.Tensor([w, h, w, h]) # Convert from normalized to original size
             # CxCyHW -> XYXY
             sam_dot_boxes[i][:2] -= sam_dot_boxes[i][2:] / 2
             sam_dot_boxes[i][2:] += sam_dot_boxes[i][:2]

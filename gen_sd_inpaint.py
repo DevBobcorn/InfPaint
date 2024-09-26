@@ -5,35 +5,7 @@ with open("config.json") as f:
 
 alwayson_scripts_value = {
         "ControlNet": {
-            "args": [
-                {
-                    "enabled": True,
-                    #"batch_image_files": [],
-                    #"batch_images": "",
-                    #"batch_modifiers": [],
-                    "control_mode": "Balanced",
-                    "guidance_end": 1.0,
-                    "guidance_start": 0.0,
-                    "hr_option": "Both",
-                    "inpaint_crop_input_image": True,
-                    "input_mode": "simple",
-                    #"is_ui": True,
-                    "loopback": False,
-                    "low_vram": True,
-                    "model": conf['ctrlnet_model'],
-                    "module": conf['ctrlnet_module'],
-                    #"output_dir": "",
-                    #"pixel_perfect": False,
-                    "processor_res": 0,
-                    "pulid_mode": "Fidelity",
-                    "resize_mode": "Crop and Resize",
-                    "save_detected_map": True,
-                    "threshold_a": 0.5,
-                    "threshold_b": 0.5,
-                    "union_control_type": "Inpaint",
-                    "weight": 1.0
-                }
-            ]
+            "args": conf['ctrlnet_args']
         },
         "Sampler": {
             "args": [
@@ -182,14 +154,17 @@ for file in glob.glob(f'{dir_i}/*'):
     base_name = file_name[:extn_index].lower()
     extn_name = file_name[extn_index:].lower()
 
-    seed = 42
+    seeds = [42, 1337, 2077]
     output_name_format = conf['output_name_format']
 
     if not base_name.endswith('_mask') and extn_name in handled_extn_names:
-        print(f'Processing [{base_name}][{extn_name}]... (Seed: {seed})')
+        print(f'Processing [{base_name}][{extn_name}]...')
         source_path = f'{dir_i}/{base_name}{extn_name}'
         mask_path   = f'{dir_i}/{base_name}_mask.png'
-        output_path = f'{dir_o}/{output_name_format.format(base_name, seed)}'
-
-        img2img(source_path, mask_path, seed, output_path)
-
+        
+        if os.path.isfile(mask_path):
+            for seed in seeds:
+                output_path = f'{dir_o}/{output_name_format.format(base_name, seed)}'
+                img2img(source_path, mask_path, seed, output_path)
+        else:
+            print(f'Mask for {source_path} is not present. Skipped.')

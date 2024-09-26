@@ -231,9 +231,9 @@ def generate_mask(image_path:str, text_prompt:str, dilate_amount:int = 0,
     
     # Combine masks into one ndarray
     combined_mask = combine_masks_as_ndarray(masks_from_boxes.cpu().numpy())
-    if masks_from_dots != None:
+    if masks_from_dots is not None:
         combined_mask_from_dots = combine_masks_as_ndarray(masks_from_dots.cpu().numpy())
-        #combined_mask = np.maximum(combined_mask, combined_mask_from_dots)
+        combined_mask = np.maximum(combined_mask, combined_mask_from_dots)
     
     # Dilate the mask
     if dilate_amount > 0:

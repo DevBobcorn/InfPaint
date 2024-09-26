@@ -234,9 +234,9 @@ def generate_mask(image_path:str, text_prompt:str, dilate_amount:int = 0,
     
     # Combine masks into one ndarray
     combined_mask = combine_masks_as_ndarray(masks_from_boxes)
-    if masks_from_dots.any():
+    if masks_from_dots is not None and masks_from_dots.any():
         combined_mask_from_dots = combine_masks_as_ndarray(masks_from_dots)
-        #combined_mask = np.maximum(combined_mask, combined_mask_from_dots)
+        combined_mask = np.maximum(combined_mask, combined_mask_from_dots)
     
     # Dilate the mask
     if dilate_amount > 0:
@@ -288,7 +288,7 @@ for file in glob.glob(f'{dir_i}/*'):
 
         sam_target_mask = generate_sam_target_mask(source_path, conf['dino2sam_target_object'])
         #sam_target_mask = None
-        mask_as_image_np = generate_mask(source_path, text_prompt, preview_each=False,
+        mask_as_image_np = generate_mask(source_path, text_prompt, preview_each=True,
                                          dilate_amount=25, sam_target_mask=sam_target_mask)
 
         # Save generated mask

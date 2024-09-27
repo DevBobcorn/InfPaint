@@ -31,29 +31,12 @@ sam_checkpoint = "./models/sam2/sam2_hiera_large.pt"
 sam_model_cfg = "sam2_hiera_l.yaml"
 sam_predictor = SAM2ImagePredictor(build_sam2(sam_model_cfg, sam_checkpoint))
 
-
-
-
-
 def check_box_text_prompt(box_prompts: str, check_prompts: list[str]) -> bool:
     for prompt_name in box_prompts.split(' '):
         if prompt_name in check_prompts:
             return True
     
     return False
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 def combine_masks_as_ndarray(mask_ndarray: np.ndarray) -> np.ndarray:
     # mask_ndarray: BxCxHxW, B is count of separate masks predicted by SAM
@@ -109,7 +92,6 @@ def generate_sam_target_mask(image_path:str, text_prompt:str) -> np.ndarray:
         sam_boxes[i][2:] += sam_boxes[i][:2]
 
     if boxes.shape[0] > 0:
-        # Changed: sam_boxes = sam_predictor.transform.apply_boxes_torch(sam_boxes, image_np.shape[:2]).to(device)
         print(f'Grounding DINO got {boxes.shape[0]} boxes.')
     else:
         print('No boxes are detected by Grounding DINO, please check the threshold value.')
@@ -121,8 +103,8 @@ def generate_sam_target_mask(image_path:str, text_prompt:str) -> np.ndarray:
     # Combine masks into one ndarray
     combined = combine_masks_as_ndarray(masks)
 
-    plt.imshow(combined)
-    plt.show()
+    #plt.imshow(combined)
+    #plt.show()
 
     return combined
 
@@ -163,7 +145,7 @@ def generate_mask(image_path:str, text_prompt:str, dilate_amount:int = 0,
     image_np, image_as_tensor = load_image(image_path)
     
     # Predict the bounding boxes and labels using Grounding DINO
-    boxes, logits, captions = predict(dino_model, image_as_tensor, text_prompt, 0.35, 0.35)
+    boxes, logits, captions = predict(dino_model, image_as_tensor, text_prompt, 0.3, 0.3)
 
     if boxes.shape[0] == 0:
         print('No boxes are detected by Grounding DINO, please check the threshold value.')
@@ -174,7 +156,7 @@ def generate_mask(image_path:str, text_prompt:str, dilate_amount:int = 0,
     # Set the image for SAM predictor
     sam_predictor.set_image(image_np)
 
-    # Convert boxes to the format required by SAM (as Torch tensor)
+    # Convert boxes to the format required by SAM (as ndarray)
     #sam_boxes = deepcopy(boxes)
     
     print(f'Dino boxes shape: {boxes.shape}')
@@ -206,8 +188,6 @@ def generate_mask(image_path:str, text_prompt:str, dilate_amount:int = 0,
         sam_boxes[i][:2] -= sam_boxes[i][2:] / 2
         sam_boxes[i][2:] += sam_boxes[i][:2]
 
-    # Changed: sam_boxes = sam_predictor.transform.apply_boxes_torch(sam_boxes, image_np.shape[:2]).to(device)
-
     if len(sam_dot_box_list) > 0:
         sam_dot_boxes = np.array(sam_dot_box_list) # Bx4, Mask count * CxCyHW
         for i in range(sam_dot_boxes.shape[0]): 
@@ -215,8 +195,6 @@ def generate_mask(image_path:str, text_prompt:str, dilate_amount:int = 0,
             # CxCyHW -> XYXY
             sam_dot_boxes[i][:2] -= sam_dot_boxes[i][2:] / 2
             sam_dot_boxes[i][2:] += sam_dot_boxes[i][:2]
-
-        # Changed: sam_dot_boxes = sam_predictor.transform.apply_boxes_torch(sam_dot_boxes, image_np.shape[:2]).to(device)
     else:
         sam_dot_boxes = None
  
@@ -225,8 +203,6 @@ def generate_mask(image_path:str, text_prompt:str, dilate_amount:int = 0,
     if len(sam_dot_coord_list) > 0:
         sam_dot_coords = np.asarray(sam_dot_coord_list) # sam_predictor.transform.apply_coords(np.asarray(sam_dot_coord_list), image_np.shape[:2])
         sam_dot_labels = np.tile(1, (sam_dot_coords.shape[0], sam_dot_coords.shape[1])) # Labels, 0 for background, 1 for foreground
-        # Changed: sam_dot_coords = torch.from_numpy(sam_dot_coords).to(device) # ndarray -> tensor
-        # Changed: sam_dot_labels = torch.from_numpy(sam_dot_labels).to(device) # ndarray -> tensor
         #print(f'Shape of sam dots: {sam_dots.size()} | {sam_dot_labels.size()}') # BxNx2, BxN
         masks_from_dots, _, _ = sam_predictor.predict(sam_dot_coords, sam_dot_labels, sam_dot_boxes, None, False)
     else:
@@ -288,7 +264,7 @@ for file in glob.glob(f'{dir_i}/*'):
 
         sam_target_mask = generate_sam_target_mask(source_path, conf['dino2sam_target_object'])
         #sam_target_mask = None
-        mask_as_image_np = generate_mask(source_path, text_prompt, preview_each=True,
+        mask_as_image_np = generate_mask(source_path, text_prompt, preview_each=False,
                                          dilate_amount=25, sam_target_mask=sam_target_mask)
 
         # Save generated mask

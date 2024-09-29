@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 import supervision as sv
 import torch
-from PIL import Image
+from PIL import Image, ImageFile
 from torchvision.ops import box_convert
 
 import local_groundingdino.datasets.transforms as T
@@ -36,6 +36,9 @@ def load_model(model_config_path: str, model_checkpoint_path: str, device: str =
 
 
 def load_image(image_path: str) -> Tuple[np.array, torch.Tensor]:
+    return load_image_pil(Image.open(image_path))
+
+def load_image_pil(image_pil: ImageFile) -> Tuple[np.array, torch.Tensor]:
     transform = T.Compose(
         [
             T.RandomResize([800], max_size=1333),
@@ -43,7 +46,7 @@ def load_image(image_path: str) -> Tuple[np.array, torch.Tensor]:
             T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
         ]
     )
-    image_source = Image.open(image_path).convert("RGB")
+    image_source = image_pil.convert("RGB")
     image = np.asarray(image_source)
     image_transformed, _ = transform(image_source, None)
     return image, image_transformed

@@ -182,6 +182,7 @@ def generate_mask(image_path:str, text_prompt:str, dilate_amount:int = 0,
             sam_box_list.append(boxes[i])
     # Stack them up as one Tensor. https://discuss.pytorch.org/t/how-to-convert-a-list-of-tensors-to-a-pytorch-tensor/175666
     sam_boxes = np.array(sam_box_list) # Bx4, Mask count * CxCyHW
+    
     for i in range(sam_boxes.shape[0]): 
         sam_boxes[i] = np.multiply(sam_boxes[i], np.array([w, h, w, h])) # Convert from normalized to original size
         # CxCyHW -> XYXY

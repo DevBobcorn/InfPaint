@@ -18,44 +18,6 @@
 
     "output_name_format": "{}_out[{}].png",
 
-    "ctrlnet_args": [
-        {
-            "advanced_weighting": null,
-            "animatediff_batch": false,
-            "batch_image_files": [],
-            "batch_images": "",
-            "batch_keyframe_idx": null,
-            "batch_mask_dir": null,
-            "batch_modifiers": [],
-            "control_mode": "My prompt is more important",
-            "effective_region_mask": null,
-            "enabled": true,
-            "guidance_end": 1.0,
-            "guidance_start": 0.0,
-            "hr_option": "Both",
-            "image": null,
-            "inpaint_crop_input_image": true,
-            "input_mode": "simple",
-            "ipadapter_input": null,
-            "is_ui": true,
-            "loopback": false,
-            "low_vram": false,
-            "mask": null,
-            "model": "control_v11p_sd15_inpaint [ebff9138]",
-            "module": "inpaint_only",
-            "output_dir": "",
-            "pixel_perfect": false,
-            "processor_res": 0,
-            "pulid_mode": "Fidelity",
-            "resize_mode": "Crop and Resize",
-            "save_detected_map": true,
-            "threshold_a": 0.5,
-            "threshold_b": 0.5,
-            "union_control_type": "Inpaint",
-            "weight": 1.0
-        }
-    ],
-
     "pos_prompt": "",
     "neg_prompt": "",
 

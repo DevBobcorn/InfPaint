@@ -3,40 +3,6 @@ import json
 with open("config.json") as f:
     conf = json.load(f)
 
-alwayson_scripts_value = {
-        "ControlNet": {
-            "args": conf['ctrlnet_args']
-        },
-        "Sampler": {
-            "args": [
-                20,
-                "Euler",
-                "Automatic"
-            ]
-        },
-        "Seed": {
-            "args": [
-                -1,
-                False,
-                -1,
-                0,
-                0,
-                0
-            ]
-        },
-        "Soft Inpainting": {
-            "args": [
-                False,
-                1,
-                0.5,
-                4,
-                0,
-                0.5,
-                2
-            ]
-        }
-    }
-
 import requests
 import io
 import base64
@@ -84,20 +50,103 @@ def img2img(image_path, mask_path, seed, output_path):
     encoded_mask  = base64.b64encode(mask_data).decode('utf-8')
 
     payload = {
-        "alwayson_scripts": alwayson_scripts_value,
+        "alwayson_scripts": {
+            "ControlNet": {
+                "args": [
+                    {
+                        "enabled": True,
+
+                        "module": "dw_openpose_full",
+                        "model": "control_v11p_sd15_openpose [cab727d4]",
+
+                        "control_mode": "Balanced",
+                        "guidance_end": 1.0,
+                        "guidance_start": 0.0,
+                        "hr_option": "Both",
+                        "inpaint_crop_input_image": True,
+                        "input_mode": "simple",
+                        "is_ui": False,
+                        "loopback": False,
+                        "low_vram": False,
+                        
+                        "processor_res": 512,
+                        "pulid_mode": "Fidelity",
+                        "resize_mode": "Crop and Resize",
+                        "save_detected_map": False,
+                        "threshold_a": 0.5,
+                        "threshold_b": 0.5,
+                        "union_control_type": "OpenPose",
+                        "weight": 1.0
+                    },
+                    {
+                        "enabled": True,
+
+                        "module": "inpaint_only", # inpaint_global_harmonious
+                        "model": "control_v11p_sd15_inpaint [ebff9138]",
+                        #"image": encoded_mask,
+
+                        "processor_res": 0.5,
+
+                        "control_mode": "Balanced",
+                        "guidance_end": 1.0,
+                        "guidance_start": 0.0,
+                        "hr_option": "Both",
+                        "inpaint_crop_input_image": False,
+                        "input_mode": "simple",
+                        "is_ui": False,
+                        "loopback": False,
+                        "low_vram": False,
+                        
+                        "resize_mode": "Crop and Resize",
+                        "save_detected_map": False,
+                        "threshold_a": 0.5,
+                        "threshold_b": 0.5,
+                        "weight": 1.0
+                    }
+                ]
+            },
+            "Sampler": {
+                "args": [
+                    30,
+                    "Euler a",
+                    "Automatic"
+                ]
+            },
+            "Seed": {
+                "args": [
+                    -1,
+                    False,
+                    -1,
+                    0,
+                    0,
+                    0
+                ]
+            },
+            "Soft Inpainting": {
+                "args": [
+                    False,
+                    1,
+                    0.5,
+                    4,
+                    0,
+                    0.5,
+                    2
+                ]
+            }
+        },
         "init_images": [encoded_image],
         "mask": encoded_mask,
-        "mask_blur": 4,
+        "mask_blur": 4, # Set this to higher value if Soft Inpainting is enabled
         "mask_blur_x": 4,
         "mask_blur_y": 4,
-        "mask_round": True,
+        "mask_round": False,
 
         "seed": seed,
         "seed_enable_extras": True,
         "seed_resize_from_h": -1,
         "seed_resize_from_w": -1,
 
-        "steps": 20,
+        "steps": 30,
         "scale_by": 0.5,
         "width": image_w,
         "height": image_h,
@@ -110,7 +159,7 @@ def img2img(image_path, mask_path, seed, output_path):
         "initial_noise_multiplier": 1,
         "inpaint_full_res": 0,
         "inpaint_full_res_padding": 32,
-        "inpainting_fill": 1,
+        "inpainting_fill": 1, # 0 for fill, 1 for original content
         "inpainting_mask_invert": 0,
 
         "n_iter": 1,
@@ -121,7 +170,7 @@ def img2img(image_path, mask_path, seed, output_path):
         "s_noise": 1,
         "s_tmax": 1,
         "s_tmin": 0,
-        "sampler_name": "Euler",
+        "sampler_name": "Euler a",
         "scheduler": "Automatic",
     }
 

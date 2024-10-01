@@ -20,9 +20,7 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
 
 # Load the Grounding DINO model
-dino_model = load_dino_model(
-        "models/grounding-dino/GroundingDINO_SwinT_OGC.py",
-        "models/grounding-dino/groundingdino_swint_ogc.pth")
+dino_model = load_dino_model(conf['dino_config'], conf['dino_model'])
 
 # Load the SAM2 model
 print('Loading SAM2...')
@@ -32,7 +30,7 @@ sam_model_cfg = "sam2_hiera_l.yaml"
 sam_predictor = SAM2ImagePredictor(build_sam2(sam_model_cfg, sam_checkpoint))
 
 HOST = "127.0.0.1"  # Standard loopback interface address (localhost)
-PORT = 65432  # Port to listen on (non-privileged ports are > 1023)
+PORT = conf['mask_api_port']  # Port to listen on (non-privileged ports are > 1023)
 
 # Not sure what it is. See https://github.com/eriklindernoren/PyTorch-YOLOv3/issues/162
 #from PIL import ImageFile

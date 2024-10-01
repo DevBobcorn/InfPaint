@@ -1,7 +1,10 @@
 {
     "api": "http://127.0.0.1:7860",
-    "dir_i": "Your/Path/data/input",
-    "dir_o": "Your/Path/data/output",
+    "mask_api_port": 65432,
+
+    "dir_i": "path/to/input/folder",
+    "dir_o": "path/to/output/folder",
+    
     "accept_types": [
         ".png", ".jpg", ".jpeg", ".webp"
     ],

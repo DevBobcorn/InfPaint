@@ -1,3 +1,8 @@
+import json
+
+with open("config.json") as f:
+    conf = json.load(f)
+
 import socket
 import io
 import copy
@@ -48,6 +53,19 @@ def send_ascii_text(conn, text: str):
     text_bytes = text.encode(encoding='ascii')
     conn.sendall(len(text_bytes).to_bytes(4, 'big'))
     conn.sendall(text_bytes)
+
+def recv_utf8_text(conn) -> str:
+    text_size = int.from_bytes(conn.recv(4), 'big') # 4B, unsigned big-endian
+    return conn.recv(text_size).decode(encoding='utf-8')
+
+def send_utf8_text(conn, text: str):
+    text_bytes = text.encode(encoding='utf-8')
+    conn.sendall(len(text_bytes).to_bytes(4, 'big'))
+    conn.sendall(text_bytes)
+
+def send_mask_creator_args(conn):
+    send_utf8_text(conn, conf['dir_i'])
+    send_ascii_text(conn, conf['dino_prompt'])
 
 def generate_masks(conn):
     image_bytes = recv_image_bytes(conn)
@@ -243,6 +261,8 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
                             generate_masks(conn)
                         elif process_type == 102: # GenerateBoxLayers request
                             generate_box_layers(conn)
+                        elif process_type == 200: # GetStartupArgs request
+                            send_mask_creator_args(conn)
                         else:
                             print(f'Undefined process type: {process_type}')
 

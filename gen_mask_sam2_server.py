@@ -20,14 +20,12 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
 
 # Load the Grounding DINO model
+print('Loading Grouding DINO...')
 dino_model = load_dino_model(conf['dino_config'], conf['dino_model'])
 
 # Load the SAM2 model
 print('Loading SAM2...')
-
-sam_checkpoint = "./models/sam2/sam2_hiera_large.pt"
-sam_model_cfg = "sam2_hiera_l.yaml"
-sam_predictor = SAM2ImagePredictor(build_sam2(sam_model_cfg, sam_checkpoint))
+sam_predictor = SAM2ImagePredictor(build_sam2(conf['sam_config'], conf['sam_model']))
 
 HOST = "127.0.0.1"  # Standard loopback interface address (localhost)
 PORT = conf['mask_api_port']  # Port to listen on (non-privileged ports are > 1023)

@@ -24,12 +24,12 @@ warnings.filterwarnings("ignore", category=UserWarning)
 device = conf['mask_gen_device']
 
 # Load the Grounding DINO model
+print('Loading Grouding DINO...')
 dino_model = load_dino_model(conf['dino_config'], conf['dino_model'])
 
 # Load the SAM2 model
-sam_checkpoint = "./models/sam2/sam2_hiera_large.pt"
-sam_model_cfg = "sam2_hiera_l.yaml"
-sam_predictor = SAM2ImagePredictor(build_sam2(sam_model_cfg, sam_checkpoint))
+print('Loading SAM2...')
+sam_predictor = SAM2ImagePredictor(build_sam2(conf['sam_config'], conf['sam_model']))
 
 def check_box_text_prompt(box_prompts: str, check_prompts: list[str]) -> bool:
     for prompt_name in box_prompts.split(' '):

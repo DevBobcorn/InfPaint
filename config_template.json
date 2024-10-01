@@ -11,12 +11,12 @@
 
     "dino_config": "models/grounding-dino/GroundingDINO_SwinT_OGC.py",
     "dino_model": "models/grounding-dino/groundingdino_swint_ogc.pth",
-    "dino_prompt": "split.prompts.with.dot.",
-    "dino2sam_target_object": "split.prompts.with.dot.",
-    "dino2sam_as_point": "split.prompts.with.dot.",
-    "dino2sam_ignore": "split.prompts.with.dot.",
-    "sam_model": "models/sam/sam_vit_b_01ec64.pth",
-    "sam_model_type": "vit_b",
+    "dino_prompt": "",
+    "dino2sam_target_object": "",
+    "dino2sam_as_point": "",
+    "dino2sam_ignore": "",
+    "sam_config": "sam2_hiera_l.yaml",
+    "sam_model": "models/sam2/sam2_hiera_large.pt",
     "mask_gen_device": "cuda",
 
     "output_name_format": "{}_out[{}].png",

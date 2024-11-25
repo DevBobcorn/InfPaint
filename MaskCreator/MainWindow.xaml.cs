@@ -10,6 +10,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
+using System.Windows.Threading;
 
 namespace MaskCreator
 {
@@ -63,18 +64,16 @@ namespace MaskCreator
             EditNone();
             MaskImage.Opacity = MaskOpacitySlider.Value / 100;
 
-            TryInitializeFromServer().GetAwaiter().GetResult();
-        }
+            var initTask = ClientSAM_REST.GetStartupArgs(msg => MessageLabel.Content = msg);
 
-        private async Task TryInitializeFromServer()
-        {
-            var (procDir, dinoPrompt) = await ClientSAM.GetStartupArgs(msg => MessageLabel.Content = msg);
+            var windowTask = initTask.ContinueWith((prevTask) =>
+            {
+                // Load received directory
+                LoadDirectory(prevTask.Result.procDir);
 
-            // Load received directory
-            LoadDirectory(procDir);
-
-            // Assign received prompt
-            DinoPromptTextBox.Text = dinoPrompt;
+                // Assign received prompt
+                DinoPromptTextBox.Text = prevTask.Result.procDir;
+            }, TaskScheduler.FromCurrentSynchronizationContext());
         }
 
         private void LoadDirectory(string directory)
@@ -466,13 +465,13 @@ namespace MaskCreator
             {
                 if (focusedMaskLayer is PointMaskLayerData pointLayer)
                 {
-                    var masks = await ClientSAM.GenerateMasks(baseImageBytes, pointLayer.GetControlPoints(), null, msg => MessageLabel.Content = msg);
+                    var masks = await ClientSAM_REST.GenerateMasks(baseImageBytes, pointLayer.GetControlPoints(), null, msg => MessageLabel.Content = msg);
 
                     focusedMaskLayer.UpdateMaskData(masks, UpdateMaskImageFromBytes);
                 }
                 else if (focusedMaskLayer is BoxMaskLayerData boxLayer)
                 {
-                    var masks = await ClientSAM.GenerateMasks(baseImageBytes, boxLayer.GetControlPoints(), boxLayer.GetControlBox(), msg => MessageLabel.Content = msg);
+                    var masks = await ClientSAM_REST.GenerateMasks(baseImageBytes, boxLayer.GetControlPoints(), boxLayer.GetControlBox(), msg => MessageLabel.Content = msg);
 
                     focusedMaskLayer.UpdateMaskData(masks, UpdateMaskImageFromBytes);
                 }
@@ -489,7 +488,7 @@ namespace MaskCreator
         {
             if (baseImageBytes is null) return;
 
-            var boxLayers = await ClientSAM.GenerateBoxLayers(baseImageBytes, DinoPromptTextBox.Text, baseImageWidth, baseImageHeight, msg => MessageLabel.Content = msg);
+            var boxLayers = await ClientSAM_REST.GenerateBoxLayers(baseImageBytes, DinoPromptTextBox.Text, baseImageWidth, baseImageHeight, msg => MessageLabel.Content = msg);
 
             if (boxLayers.Length > 0)
             {

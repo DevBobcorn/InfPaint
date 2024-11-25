@@ -8,6 +8,9 @@ namespace MaskCreator.Network
     // https://stackoverflow.com/questions/57056598/named-pipes-ipc-python-server-c-sharp-client?noredirect=1&lq=1
     public static class ClientSAM
     {
+        private static readonly string HOST = "127.0.0.1";
+        private static readonly int    PORT = 65432;
+
         private enum ProcessType
         {
             Initialize        = 200,
@@ -167,7 +170,7 @@ namespace MaskCreator.Network
 
             try
             {
-                tcpClient.Connect("127.0.0.1", 65432);
+                tcpClient.Connect(HOST, PORT);
             }
             catch (Exception)
             {

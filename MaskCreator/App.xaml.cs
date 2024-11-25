@@ -11,7 +11,7 @@ namespace MaskCreator
         private void Application_Exit(object sender, ExitEventArgs e)
         {
             // Make sure to disconnect from SAM server
-            ClientSAM.Disconnect();
+            ClientSAM_REST.Disconnect();
         }
     }
 

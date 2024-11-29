@@ -1,0 +1,9 @@
+{
+  "RootPath": "G:/BulkMagic",
+  "NameOverrides": [
+    "EroPics/name_overrides.json"
+  ],
+  "PagePath": "E:/WebUI InfPaint/InfiniVue/dist",
+  "MaskHost": "",
+  "InPaintHost": ""
+}

@@ -1,240 +1,117 @@
 ﻿using MaskCreator.Masks;
+using MaskCreator.Utils;
 using System.IO;
-using System.Net.Sockets;
+using System.Net.Http;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace MaskCreator.Network
 {
     // https://stackoverflow.com/questions/57056598/named-pipes-ipc-python-server-c-sharp-client?noredirect=1&lq=1
     public static class ClientSAM
     {
-        private static readonly string HOST = "127.0.0.1";
+        private static readonly string HOST = "192.168.1.102";
         private static readonly int    PORT = 7880;
 
-        private enum ProcessType
-        {
-            Initialize        = 200,
+        private static readonly HttpClient httpClient = new();
 
-            Disconnect        = 100,
-            GenerateMasks     = 101,
-            GenerateBoxLayers = 102
+        /// <summary>
+        /// Used for json deserialization
+        /// </summary>
+        private class StartupArgsResponse
+        {
+            [JsonPropertyName("proc_dir")]
+            public required string ProcDir { get; set; }
+
+            [JsonPropertyName("dino_prompt")]
+            public required string DinoPrompt { get; set; }
         }
 
-        public const int MAX_RECEIVE_SIZE = 8 << 20; // 8MB
-
-        private static readonly byte[] _4ByteReadBuf = new byte[4];
-
-        private static TcpClient? tcpClient = null;
-
-        private static void WriteStartSequence(NetworkStream stream, ProcessType type)
+        /// <summary>
+        /// Used for json deserialization
+        /// </summary>
+        private class MaskDataObject
         {
-            for (int i = 0; i < 5; i++)
-            {
-                stream.WriteByte(0); // Padding before start sequence, will be ignored
-            }
+            [JsonPropertyName("score")]
+            public required string Score { get; set; } // float string
 
-            stream.WriteByte(42); // 1B
-            stream.WriteByte(20); // 1B
-            stream.WriteByte(77); // 1B
-            stream.WriteByte(13); // 1B
-            stream.WriteByte(37); // 1B
-
-            stream.WriteByte((byte) type); // 1B
+            [JsonPropertyName("bytes")]
+            public required string Bytes { get; set; } // Base64 encoded image bytes
         }
 
-        private static async Task WriteImageData(NetworkStream stream, byte[] imageBytes)
+        /// <summary>
+        /// Used for json deserialization
+        /// </summary>
+        private class BoxMaskLayerDataObject
         {
-            WriteUInt32(stream, (uint) imageBytes.Length); // 4B, unsigned big-endian
-            await stream.WriteAsync(imageBytes); // (imageSize)B
+            [JsonPropertyName("caption")]
+            public required string Caption { get; set; }
+
+            [JsonPropertyName("x1")]
+            public required int X1 { get; set; }
+
+            [JsonPropertyName("y1")]
+            public required int Y1 { get; set; }
+
+            [JsonPropertyName("x2")]
+            public required int X2 { get; set; }
+
+            [JsonPropertyName("y2")]
+            public required int Y2 { get; set; }
+
+            [JsonPropertyName("masks")]
+            public required List<MaskDataObject> Masks { get; set; }
         }
 
-        private static void WriteUInt32(NetworkStream stream, uint num)
+        /// <summary>
+        /// Used for json deserialization
+        /// </summary>
+        private class GenBoxMaskLayersResponse
         {
-            var bytes = BitConverter.GetBytes(num);
-
-            if (BitConverter.IsLittleEndian)
-                Array.Reverse(bytes); // Big-endian
-
-            stream.Write(bytes);
+            [JsonPropertyName("box_layers")]
+            public required List<BoxMaskLayerDataObject> BoxLayers { get; set; }
         }
 
-        private static async Task<uint> ReadUInt32(NetworkStream stream)
+        /// <summary>
+        /// Used for json deserialization
+        /// </summary>
+        private class GenMasksResponse
         {
-            await stream.ReadAsync(_4ByteReadBuf, 0, 4);
-
-            // If the system architecture is little-endian (that is, little end first),
-            // reverse the byte array.
-            if (BitConverter.IsLittleEndian)
-                Array.Reverse(_4ByteReadBuf);
-
-            return BitConverter.ToUInt32(_4ByteReadBuf, 0);
+            [JsonPropertyName("masks")]
+            public required List<MaskDataObject> Masks { get; set; }
         }
 
-        private static void WriteAsciiText(NetworkStream stream, string prompt)
+        private static async Task<string> RequestJsonTextAsync_GET(string url)
         {
-            var textBytes = Encoding.ASCII.GetBytes(prompt);
-            WriteUInt32(stream, (uint) textBytes.Length); // 4B, unsigned big-endian
-            stream.Write(textBytes);
+            var response = await httpClient.GetAsync(url);
+            response.EnsureSuccessStatusCode();
+
+            return await response.Content.ReadAsStringAsync();
         }
 
-        private static async Task<string> ReadAsciiText(NetworkStream stream)
+        private static async Task<string> RequestJsonTextAsync_POST(string url, string jsonText)
         {
-            uint textSize = await ReadUInt32(stream);
-            if (textSize > MAX_RECEIVE_SIZE)
-            {
-                throw new InvalidDataException("Data too large!");
-            }
+            var content = new StringContent(jsonText, Encoding.UTF8, "application/json");
+            var response = await httpClient.PostAsync(url, content);
+            response.EnsureSuccessStatusCode();
 
-            var textBuf = new byte[textSize];
-            await stream.ReadAsync(textBuf.AsMemory(0, (int) textSize));
-
-            return Encoding.ASCII.GetString(textBuf);
-        }
-
-        private static void WriteUtf8Text(NetworkStream stream, string prompt)
-        {
-            var textBytes = Encoding.UTF8.GetBytes(prompt);
-            WriteUInt32(stream, (uint) textBytes.Length); // 4B, unsigned big-endian
-            stream.Write(textBytes);
-        }
-
-        private static async Task<string> ReadUtf8Text(NetworkStream stream)
-        {
-            uint textSize = await ReadUInt32(stream);
-            if (textSize > MAX_RECEIVE_SIZE)
-            {
-                throw new InvalidDataException("Data too large!");
-            }
-
-            var textBuf = new byte[textSize];
-            await stream.ReadAsync(textBuf.AsMemory(0, (int) textSize));
-
-            return Encoding.UTF8.GetString(textBuf);
-        }
-
-        private static void WriteControlPoints(NetworkStream stream, ControlPoint[] points)
-        {
-            if (points.Length == 0) return;
-
-            // Write point count
-            WriteUInt32(stream, (uint) points.Length); // 4B, unsigned big-endian
-
-            for (int i = 0; i < points.Length; i++)
-            {
-                WriteUInt32(stream, (uint) points[i].X);
-                WriteUInt32(stream, (uint) points[i].Y);
-                stream.WriteByte(points[i].Label ? (byte) 1 : (byte) 0);
-            }
-        }
-
-        private static void WriteControlBox(NetworkStream stream, ControlBox? box)
-        {
-            if (box is null) return;
-
-            WriteUInt32(stream, (uint) box.X1);
-            WriteUInt32(stream, (uint) box.Y1);
-            WriteUInt32(stream, (uint) box.X2);
-            WriteUInt32(stream, (uint) box.Y2);
-        }
-
-        private static async Task<MaskGenerationResult[]> ReadGeneratedMasks(NetworkStream stream)
-        {
-            uint maskCount = await ReadUInt32(stream);
-
-            var result = new MaskGenerationResult[maskCount];
-
-            for (uint i = 0; i < maskCount; i++)
-            {
-                uint scoreAsInt = await ReadUInt32(stream);
-                var score = scoreAsInt / 1000000F;
-                uint maskSize = await ReadUInt32(stream);
-                if (maskSize > MAX_RECEIVE_SIZE)
-                {
-                    throw new InvalidDataException("Data too large!");
-                }
-
-                var maskBytes = new byte[maskSize];
-                await stream.ReadAsync(maskBytes, 0, (int) maskSize);
-
-                result[i] = new MaskGenerationResult(maskBytes, score);
-            }
-
-            return result;
-        }
-
-        public static void Connect()
-        {
-            Disconnect();
-
-            tcpClient = new TcpClient();
-
-            try
-            {
-                tcpClient.Connect(HOST, PORT);
-            }
-            catch (Exception)
-            {
-                tcpClient.Close();
-                tcpClient = null;
-            }
-        }
-
-        public static void Disconnect()
-        {
-            if (tcpClient != null)
-            {
-                if (tcpClient.Connected)
-                {
-                    try
-                    {
-                        var stream = tcpClient.GetStream();
-
-                        // Send disconnect request
-                        WriteStartSequence(stream, ProcessType.Disconnect);
-
-                        stream.Close();
-                    }
-                    catch (Exception) { }
-                }
-                
-                tcpClient.Close();
-
-                tcpClient = null;
-            }
-        }
-
-        private static NetworkStream? GetConnectionStream()
-        {
-            if (tcpClient == null || !tcpClient.Connected)
-            {
-                Connect();
-            }
-
-            return tcpClient?.GetStream();
+            return await response.Content.ReadAsStringAsync();
         }
 
         public static async Task<(string procDir, string dinoPrompt)> GetStartupArgs(Action<string> msgCallback)
         {
-            NetworkStream? stream = GetConnectionStream();
-            if (stream is null)
-            {
-                msgCallback.Invoke("Failed to connect with SAM2 server.");
-                return (string.Empty, string.Empty);
-            }
-
             try
             {
-                WriteStartSequence(stream, ProcessType.Initialize);
-
-                stream.Flush();
+                var requestUrl = $"http://{HOST}:{PORT}/mask_creator_args";
 
                 msgCallback.Invoke("Starting up...");
 
-                var procDir = await ReadUtf8Text(stream);
+                // Receive startup args
+                var respText = await RequestJsonTextAsync_GET(requestUrl);
+                var startupArgs = JsonSerializer.Deserialize<StartupArgsResponse>(respText)!;
 
-                var dinoPrompt = await ReadAsciiText(stream);
-
-                return (procDir, dinoPrompt);
+                return (startupArgs.ProcDir, startupArgs.DinoPrompt);
             }
             catch (IOException ex)
             {
@@ -251,38 +128,33 @@ namespace MaskCreator.Network
                 return [];
             }
 
-            NetworkStream? stream = GetConnectionStream();
-            if (stream is null)
-            {
-                msgCallback.Invoke("Failed to connect with SAM2 server.");
-                return [];
-            }
-
             try
             {
-                WriteStartSequence(stream, ProcessType.GenerateBoxLayers);
-                await WriteImageData(stream, imageBytes);
-                WriteAsciiText(stream, prompt);
+                Dictionary<string, object> parameters = new()
+                {
+                    ["image_bytes"] = Convert.ToBase64String(imageBytes),
+                    ["text_prompt"] = prompt
+                };
+                var requestUrl = $"http://{HOST}:{PORT}/generate_box_layers";
 
-                stream.Flush();
                 msgCallback.Invoke("Generating box layers...");
 
-                uint boxLayerCount = await ReadUInt32(stream);
+                // Receive generated box mask layers
+                var respText = await RequestJsonTextAsync_POST(requestUrl, SimpleJsonSerializer.Object2Json(parameters));
+                var boxLayerObjects = JsonSerializer.Deserialize<GenBoxMaskLayersResponse>(respText)!.BoxLayers;
+                
+                var boxLayerCount = boxLayerObjects.Count;
                 var boxLayers = new BoxMaskLayerData[boxLayerCount];
 
-                for (uint i = 0; i < boxLayerCount; i++)
+                for (int i = 0; i < boxLayerCount; i++)
                 {
-                    var caption = await ReadAsciiText(stream);
+                    var boxLayerObject = boxLayerObjects[i];
 
-                    uint x1 = await ReadUInt32(stream);
-                    uint x2 = await ReadUInt32(stream);
-                    uint y1 = await ReadUInt32(stream);
-                    uint y2 = await ReadUInt32(stream);
-
-                    var boxMasks = await ReadGeneratedMasks(stream);
-
-                    boxLayers[i] = new BoxMaskLayerData($"Box [{caption}]", w, h, (int) x1, (int) x2, (int) y1, (int) y2);
-                    boxLayers[i].UpdateMaskData(boxMasks, x => { });
+                    boxLayers[i] = new BoxMaskLayerData($"Box [{boxLayerObject.Caption}]", w, h,
+                        boxLayerObject.X1, boxLayerObject.Y1, boxLayerObject.X2, boxLayerObject.Y2);
+                    boxLayers[i].UpdateMaskData(boxLayerObject.Masks.Select(
+                        x => new MaskGenerationResult(Convert.FromBase64String(x.Bytes),
+                            float.Parse(x.Score, System.Globalization.CultureInfo.InvariantCulture))).ToArray(), x => { });
                 }
 
                 msgCallback.Invoke($"Generated {boxLayerCount} box layer(s).");
@@ -308,46 +180,44 @@ namespace MaskCreator.Network
 
             if (controlFlag == 0)
             {
-                msgCallback.Invoke("Points and/or box prompts required for segmentation.");
-                return [];
-            }
-
-            NetworkStream? stream = GetConnectionStream();
-            if (stream is null)
-            {
-                msgCallback.Invoke("Failed to connect with SAM2 server.");
+                msgCallback.Invoke("Points and/or box prompts are required for segmentation.");
                 return [];
             }
 
             try
             {
-                WriteStartSequence(stream, ProcessType.GenerateMasks);
-                await WriteImageData(stream, imageBytes);
-
-                stream.WriteByte(controlFlag); // 1B
+                Dictionary<string, object> parameters = new()
+                {
+                    ["image_bytes"] = Convert.ToBase64String(imageBytes),
+                    ["control_flag"] = controlFlag
+                };
 
                 // Write control points if given
                 if (writePoints)
                 {
-                    WriteControlPoints(stream, points);
+                    parameters.Add("points", string.Join(',', points.Select(p => $"{p.X},{p.Y},{(p.Label ? 1 : 0)}")));
                 }
 
                 // Write control box if given
-                if (writeBox)
+                if (writeBox && box is not null)
                 {
-                    WriteControlBox(stream, box);
+                    parameters.Add("box", $"{box.X1},{box.Y1},{box.X2},{box.Y2}");
                 }
 
-                stream.Flush();
+                var requestUrl = $"http://{HOST}:{PORT}/generate_masks";
+
                 msgCallback.Invoke("Generating masks...");
 
                 // Receive generated masks
-                var masks = await ReadGeneratedMasks(stream);
+                var respText = await RequestJsonTextAsync_POST(requestUrl, SimpleJsonSerializer.Object2Json(parameters));
+                var respObj = JsonSerializer.Deserialize<GenMasksResponse>(respText);
+                var maskObjects = respObj!.Masks;
 
-                msgCallback.Invoke($"Generated {masks.Length} mask candidate(s). Scores: {
-                        string.Join(" | ", masks.Select(x => x.score.ToString("0.000")))}");
+                msgCallback.Invoke($"Generated {maskObjects.Count} mask candidate(s). Scores: {string.Join(" | ",
+                    maskObjects.Select(x => float.Parse(x.Score, System.Globalization.CultureInfo.InvariantCulture).ToString("0.000")))}");
 
-                return masks;
+                return maskObjects.Select(x => new MaskGenerationResult(Convert.FromBase64String(x.Bytes),
+                    float.Parse(x.Score, System.Globalization.CultureInfo.InvariantCulture))).ToArray();
             }
             catch (IOException ex)
             {

@@ -19,7 +19,7 @@
             <Canvas x:Name="GuidelineCanvas"/>
             <Image x:Name="OverlayImage" MouseMove="OverlayImage_MouseMove" MouseLeave="OverlayImage_MouseLeave"
                    MouseDown="OverlayImage_MouseDown" MouseUp="OverlayImage_MouseUp"/>
-            <Label x:Name="MessageLabel" Content="Message" Height="28" Background="#FFFFFFFF"
+            <TextBlock x:Name="MessageLabel" Text="Message" Height="18" Background="#FFFFFFFF"
                    HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="-2,0,0,-2"/>
 
         </Grid>

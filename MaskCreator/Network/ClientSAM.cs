@@ -9,7 +9,7 @@ namespace MaskCreator.Network
     public static class ClientSAM
     {
         private static readonly string HOST = "127.0.0.1";
-        private static readonly int    PORT = 65432;
+        private static readonly int    PORT = 7880;
 
         private enum ProcessType
         {

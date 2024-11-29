@@ -12,16 +12,7 @@ namespace MaskCreator.Network
     public static class ClientSAM_REST
     {
         private static readonly string HOST = "127.0.0.1";
-        private static readonly int    PORT = 65432;
-
-        private enum ProcessType
-        {
-            Initialize = 200,
-
-            Disconnect = 100,
-            GenerateMasks = 101,
-            GenerateBoxLayers = 102
-        }
+        private static readonly int    PORT = 7880;
 
         private static readonly HttpClient httpClient = new();
 
@@ -199,7 +190,7 @@ namespace MaskCreator.Network
 
             if (controlFlag == 0)
             {
-                msgCallback.Invoke("Points and/or box prompts required for segmentation.");
+                msgCallback.Invoke("Points and/or box prompts are required for segmentation.");
                 return [];
             }
 

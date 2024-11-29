@@ -64,7 +64,7 @@ namespace MaskCreator
             EditNone();
             MaskImage.Opacity = MaskOpacitySlider.Value / 100;
 
-            var initTask = ClientSAM_REST.GetStartupArgs(msg => MessageLabel.Content = msg);
+            var initTask = ClientSAM_REST.GetStartupArgs(msg => MessageLabel.Text = msg);
 
             var windowTask = initTask.ContinueWith((prevTask) =>
             {
@@ -72,7 +72,7 @@ namespace MaskCreator
                 LoadDirectory(prevTask.Result.procDir);
 
                 // Assign received prompt
-                DinoPromptTextBox.Text = prevTask.Result.procDir;
+                DinoPromptTextBox.Text = prevTask.Result.dinoPrompt;
             }, TaskScheduler.FromCurrentSynchronizationContext());
         }
 
@@ -105,7 +105,7 @@ namespace MaskCreator
             }
 
             Title = $"Mask Creator - No image loaded";
-            MessageLabel.Content = "No base image found in directory";
+            MessageLabel.Text = "No base image found in directory";
 
             // Update panel visibility
             OpenFolderPanel.Visibility = Visibility.Visible;
@@ -116,13 +116,13 @@ namespace MaskCreator
         {
             if (focusedMaskLayer is not null)
             {
-                MessageLabel.Content = $"Cannot load base image in edit mode!";
+                MessageLabel.Text = $"Cannot load base image in edit mode!";
                 return;
             }
 
             if (index < 0 || index >= baseImageArray.Length)
             {
-                MessageLabel.Content = $"Cannot load base image #{index + 1}";
+                MessageLabel.Text = $"Cannot load base image #{index + 1}";
                 return;
             }
 
@@ -177,7 +177,7 @@ namespace MaskCreator
             baseImageHeight = baseImageSource.PixelHeight;
 
             cursorPixelX = cursorPixelY = -1;
-            MessageLabel.Content = string.Empty;
+            MessageLabel.Text = string.Empty;
 
             // Also update overlay image
             OverlayImage.Source = null;
@@ -249,7 +249,7 @@ namespace MaskCreator
             UpdateGuideline(new(-100, -100), 0, 0, new(0, 0));
 
             // Clear message label
-            MessageLabel.Content = string.Empty;
+            MessageLabel.Text = string.Empty;
 
             // Update panel status
             MaskLayerControlPanel.Visibility = Visibility.Collapsed;
@@ -291,14 +291,14 @@ namespace MaskCreator
                 if (relativeWidth < 0 || relativeHeight < 0 || relativeWidth > 1 || relativeHeight > 1)
                 {
                     cursorPixelX = cursorPixelY = -1;
-                    MessageLabel.Content = string.Empty;
+                    MessageLabel.Text = string.Empty;
                     return;
                 }
 
                 cursorPixelX = (int)(baseImageWidth * relativeWidth);
                 cursorPixelY = (int)(baseImageHeight * relativeHeight);
 
-                MessageLabel.Content = $"Cursor Pixel: {cursorPixelX}, {cursorPixelY}";
+                MessageLabel.Text = $"Cursor Pixel: {cursorPixelX}, {cursorPixelY}";
             }
 
             if (focusedMaskLayer is not null && cursorPixelX != -1 && cursorPixelY != -1)
@@ -310,7 +310,7 @@ namespace MaskCreator
         private void OverlayImage_MouseLeave(object sender, MouseEventArgs e)
         {
             cursorPixelX = cursorPixelY = -1;
-            MessageLabel.Content = string.Empty;
+            MessageLabel.Text = string.Empty;
 
             // Reset guideline coordinates
             UpdateGuideline(new(-100, -100), 0, 0, new(0, 0));
@@ -454,7 +454,7 @@ namespace MaskCreator
                 }
                 else
                 {
-                    MessageLabel.Content = "Cannot convert empty Layer!";
+                    MessageLabel.Text = "Cannot convert empty Layer!";
                 }
             }
         }
@@ -465,13 +465,13 @@ namespace MaskCreator
             {
                 if (focusedMaskLayer is PointMaskLayerData pointLayer)
                 {
-                    var masks = await ClientSAM_REST.GenerateMasks(baseImageBytes, pointLayer.GetControlPoints(), null, msg => MessageLabel.Content = msg);
+                    var masks = await ClientSAM_REST.GenerateMasks(baseImageBytes, pointLayer.GetControlPoints(), null, msg => MessageLabel.Text = msg);
 
                     focusedMaskLayer.UpdateMaskData(masks, UpdateMaskImageFromBytes);
                 }
                 else if (focusedMaskLayer is BoxMaskLayerData boxLayer)
                 {
-                    var masks = await ClientSAM_REST.GenerateMasks(baseImageBytes, boxLayer.GetControlPoints(), boxLayer.GetControlBox(), msg => MessageLabel.Content = msg);
+                    var masks = await ClientSAM_REST.GenerateMasks(baseImageBytes, boxLayer.GetControlPoints(), boxLayer.GetControlBox(), msg => MessageLabel.Text = msg);
 
                     focusedMaskLayer.UpdateMaskData(masks, UpdateMaskImageFromBytes);
                 }
@@ -488,7 +488,7 @@ namespace MaskCreator
         {
             if (baseImageBytes is null) return;
 
-            var boxLayers = await ClientSAM_REST.GenerateBoxLayers(baseImageBytes, DinoPromptTextBox.Text, baseImageWidth, baseImageHeight, msg => MessageLabel.Content = msg);
+            var boxLayers = await ClientSAM_REST.GenerateBoxLayers(baseImageBytes, DinoPromptTextBox.Text, baseImageWidth, baseImageHeight, msg => MessageLabel.Text = msg);
 
             if (boxLayers.Length > 0)
             {
@@ -519,7 +519,7 @@ namespace MaskCreator
         {
             if (maskPngBytes is null)
             {
-                MessageLabel.Content = "Cannot save empty mask";
+                MessageLabel.Text = "Cannot save empty mask";
                 return;
             }
 
@@ -527,12 +527,12 @@ namespace MaskCreator
             {
                 await System.IO.File.WriteAllBytesAsync(savedMaskImagePath, maskPngBytes);
 
-                // Update window title
-                MessageLabel.Content = $"Mask saved to {savedMaskImagePath}";
+                // Update message label
+                MessageLabel.Text = $"Mask saved to {savedMaskImagePath}";
             }
             catch (System.IO.IOException ex)
             {
-                MessageLabel.Content = $"Error: {ex.Message}";
+                MessageLabel.Text = $"Error: {ex.Message}";
             }
         }
 

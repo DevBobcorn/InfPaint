@@ -49,10 +49,8 @@ coverage.xml
 # Sphinx documentation
 docs/_build/
 
-# Model & Input & Output
+# Models
 /models/
-/input/
-/output/
 
 # User-defined config
 /config.json

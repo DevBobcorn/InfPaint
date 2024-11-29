@@ -1,4 +1,9 @@
 import json
+import sys, os
+
+# Change cwd to script path
+print(sys.path[0])
+os.chdir(sys.path[0])
 
 with open("config.json") as f:
     conf = json.load(f)

@@ -1,9 +1,6 @@
 {
     "api": "http://127.0.0.1:7860",
-    "mask_api_port": 65432,
-
-    "dir_i": "path/to/input/folder",
-    "dir_o": "path/to/output/folder",
+    "mask_api_port": 7880,
     
     "accept_types": [
         ".png", ".jpg", ".jpeg", ".webp"
@@ -15,7 +12,7 @@
     "dino2sam_target_object": "",
     "dino2sam_as_point": "",
     "dino2sam_ignore": "",
-    "sam_config": "sam2_hiera_l.yaml",
+    "sam_config": "configs/sam2/sam2_hiera_l.yaml",
     "sam_model": "models/sam2/sam2_hiera_large.pt",
     "mask_gen_device": "cuda",
 

@@ -3,7 +3,9 @@ import json
 with open("config.json") as f:
     conf = json.load(f)
 
-import socket
+from flask import Flask, jsonify, request
+from flask_cors import CORS
+import base64
 import io
 import copy
 import numpy as np
@@ -27,44 +29,21 @@ dino_model = load_dino_model(conf['dino_config'], conf['dino_model'])
 print('Loading SAM2...')
 sam_predictor = SAM2ImagePredictor(build_sam2(conf['sam_config'], conf['sam_model']))
 
-HOST = "127.0.0.1"  # Standard loopback interface address (localhost)
+HOST = '192.168.1.102'
 PORT = conf['mask_api_port']  # Port to listen on (non-privileged ports are > 1023)
 
 # Not sure what it is. See https://github.com/eriklindernoren/PyTorch-YOLOv3/issues/162
 #from PIL import ImageFile
 #ImageFile.LOAD_TRUNCATED_IMAGES = True
 
-def recv_image_bytes(conn) -> bytes:
-    image_size = int.from_bytes(conn.recv(4), 'big') # 4B, unsigned big-endian
-    image_bytes = conn.recv(image_size)
-    print(f'Received image size: {len(image_bytes)}')
+app = Flask(__name__)
+CORS(app, origins='*')
 
-    return image_bytes
+@app.route('/generate_masks', methods = ['POST'])
+def generate_masks():
+    received_json = request.get_json()
 
-def recv_ascii_text(conn) -> str:
-    text_size = int.from_bytes(conn.recv(4), 'big') # 4B, unsigned big-endian
-    return conn.recv(text_size).decode(encoding='ascii')
-
-def send_ascii_text(conn, text: str):
-    text_bytes = text.encode(encoding='ascii')
-    conn.sendall(len(text_bytes).to_bytes(4, 'big'))
-    conn.sendall(text_bytes)
-
-def recv_utf8_text(conn) -> str:
-    text_size = int.from_bytes(conn.recv(4), 'big') # 4B, unsigned big-endian
-    return conn.recv(text_size).decode(encoding='utf-8')
-
-def send_utf8_text(conn, text: str):
-    text_bytes = text.encode(encoding='utf-8')
-    conn.sendall(len(text_bytes).to_bytes(4, 'big'))
-    conn.sendall(text_bytes)
-
-def send_mask_creator_args(conn):
-    send_utf8_text(conn, conf['dir_i'])
-    send_ascii_text(conn, conf['dino_prompt'])
-
-def generate_masks(conn):
-    image_bytes = recv_image_bytes(conn)
+    image_bytes = base64.b64decode(received_json['image_bytes'])
 
     image_pil = Image.open(io.BytesIO(image_bytes))
     image_np = np.asarray(image_pil.convert('RGB'))
@@ -72,7 +51,7 @@ def generate_masks(conn):
     # Set image for SAM
     sam_predictor.set_image(image_np)
 
-    control_flag = int.from_bytes(conn.recv(1)) # 1B
+    control_flag = received_json['control_flag']
 
     logit_input = None
 
@@ -80,12 +59,16 @@ def generate_masks(conn):
         input_point = []
         input_label = []
 
-        point_count = int.from_bytes(conn.recv(4), 'big') # 4B, unsigned big-endian
+        points = received_json['points'].split(',')
 
-        for i in range(point_count):
-            x = int.from_bytes(conn.recv(4), 'big') # 4B, unsigned big-endian
-            y = int.from_bytes(conn.recv(4), 'big') # 4B, unsigned big-endian
-            label = int.from_bytes(conn.recv(1)) # 1B
+        if len(points) % 3 != 0:
+            print(f'Unexpected length for point data array. Should be a multuple of 3, got {len(points)}.')
+            return
+
+        for i in range(0, len(points), 3):
+            x = int(points[i])
+            y = int(points[i + 1])
+            label = int(points[i + 2])
 
             print(f'Point: {x}, {y} [{label}]')
 
@@ -99,10 +82,17 @@ def generate_masks(conn):
         input_label_np = None
     
     if (control_flag & 2) != 0: # Box
-        x1 = int.from_bytes(conn.recv(4), 'big') # 4B, unsigned big-endian
-        y1 = int.from_bytes(conn.recv(4), 'big') # 4B, unsigned big-endian
-        x2 = int.from_bytes(conn.recv(4), 'big') # 4B, unsigned big-endian
-        y2 = int.from_bytes(conn.recv(4), 'big') # 4B, unsigned big-endian
+
+        box = received_json['box'].split(',')
+        
+        if len(box) != 4:
+            print(f'Unexpected length for point data array. Should be 4, got {len(points)}.')
+            return
+        
+        x1 = int(box[0])
+        y1 = int(box[1])
+        x2 = int(box[2])
+        y2 = int(box[3])
 
         print(f'Box: {x1}, {y1}, {x2}, {y2}')
         
@@ -118,13 +108,12 @@ def generate_masks(conn):
         multimask_output=True,
     )
 
-    mask_count = masks.shape[0]
-    conn.sendall(mask_count.to_bytes(4, 'big'))
-    
-    for i in range(mask_count):
+    result = { }
+    result['masks'] = [ ]
+
+    for i in range(masks.shape[0]):
         # Convert to rgb image (still as np array)
         mask_as_image_np = np.stack((masks[i].astype(np.uint8) * 255,) * 3, axis=-1)
-        mask_score_as_int = int(1000000 * scores[i])
         print('Mask image shape: ' + str(mask_as_image_np.shape) + ', Score: ' + str(scores[i]))
 
         byte_buffer = io.BytesIO()
@@ -132,15 +121,22 @@ def generate_masks(conn):
         mask_pil = Image.fromarray(mask_as_image_np)
         mask_pil.save(byte_buffer, format='PNG')
         mask_png_bytes = byte_buffer.getvalue()
-        mask_png_size = len(mask_png_bytes)
 
-        conn.sendall(mask_score_as_int.to_bytes(4, 'big'))
-        conn.sendall(mask_png_size.to_bytes(4, 'big'))
-        conn.sendall(mask_png_bytes)
+        result['masks'].append({
+            'score': str(scores[i]),
+            'bytes': base64.b64encode(mask_png_bytes).decode('ascii')
+        })
+    
+    return jsonify(result)
 
-def generate_box_layers(conn):
-    image_bytes = recv_image_bytes(conn)
-    text_prompt = recv_ascii_text(conn)
+
+@app.route('/generate_box_layers', methods = ['POST'])
+def generate_box_layers():
+    received_json = request.get_json()
+
+    image_bytes = base64.b64decode(received_json['image_bytes'])
+    text_prompt = received_json['text_prompt']
+
     print(f'Text prompt: {text_prompt}')
 
     # Load the image
@@ -163,23 +159,17 @@ def generate_box_layers(conn):
         # CxCyHW -> XYXY
         sam_boxes[i][:2] -= sam_boxes[i][2:] / 2
         sam_boxes[i][2:] += sam_boxes[i][:2]
-    
-    # Send box layer count
-    conn.sendall(int(sam_boxes.shape[0]).to_bytes(4, 'big'))
 
     box_scores = logits.numpy()
+
+    result = { }
+    result['boxes'] = [ ]
 
     for i in range(sam_boxes.shape[0]):
         x1, y1 = int(sam_boxes[i][0]), int(sam_boxes[i][1])
         x2, y2 = int(sam_boxes[i][2]), int(sam_boxes[i][3])
 
         print(f'Box [{captions[i]}]: {x1}, {y1}, {x2}, {y2} (Score: {box_scores[i]:.3f})')
-        send_ascii_text(conn, captions[i] + f' ({box_scores[i]:.3f})')
-
-        conn.sendall(x1.to_bytes(4, 'big'))
-        conn.sendall(y1.to_bytes(4, 'big'))
-        conn.sendall(x2.to_bytes(4, 'big'))
-        conn.sendall(y2.to_bytes(4, 'big'))
 
         input_box_np = np.array([x1, y1, x2, y2])
 
@@ -189,13 +179,18 @@ def generate_box_layers(conn):
             multimask_output=True,
         )
 
-        mask_count = masks.shape[0]
-        conn.sendall(mask_count.to_bytes(4, 'big'))
+        box_obj = { }
+        box_obj['caption'] = captions[i] + f' ({box_scores[i]:.3f})'
+        box_obj['x1'] = x1
+        box_obj['y1'] = y1
+        box_obj['x2'] = x2
+        box_obj['y2'] = y2
+
+        box_obj['masks'] = [ ]
         
-        for i in range(mask_count):
+        for i in range(masks.shape[0]):
             # Convert to rgb image (still as np array)
             mask_as_image_np = np.stack((masks[i].astype(np.uint8) * 255,) * 3, axis=-1)
-            mask_score_as_int = int(1000000 * scores[i])
             print('Mask image shape: ' + str(mask_as_image_np.shape) + ', Score: ' + str(scores[i]))
 
             byte_buffer = io.BytesIO()
@@ -203,71 +198,25 @@ def generate_box_layers(conn):
             mask_pil = Image.fromarray(mask_as_image_np)
             mask_pil.save(byte_buffer, format='PNG')
             mask_png_bytes = byte_buffer.getvalue()
-            mask_png_size = len(mask_png_bytes)
 
-            conn.sendall(mask_score_as_int.to_bytes(4, 'big'))
-            conn.sendall(mask_png_size.to_bytes(4, 'big'))
-            conn.sendall(mask_png_bytes)
+            box_obj['masks'].append({
+                'score': str(scores[i]),
+                'bytes': base64.b64encode(mask_png_bytes).decode('ascii')
+            })
+        
+        result['box_layers'].append(box_obj)
+    
+    return jsonify(result)
 
 
-with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+@app.route('/mask_creator_args')
+def mask_creator_args():
+    return jsonify({
+        'proc_dir': conf['dir_i'],
+        'dino_prompt': conf['dino_prompt']
+    })
 
-    sock.bind((HOST, PORT))
-    sock.listen()
-    print(f'Server listening on {HOST}:{PORT}')
 
-    while True:
-        conn, addr = sock.accept()
-
-        with conn:
-            print(f"Connected with {addr}")
-
-            start_seq = [ 42, 20, 77, 13, 37 ]
-            dont_read_nxt = False
-
-            nxt_byte = 0
-
-            try:
-                while True:
-                
-                    # Find next request start
-                    if not dont_read_nxt:
-                        nxt_byte = int.from_bytes(conn.recv(1))
-                    else:
-                        dont_read_nxt = False # Reset flag
-
-                    while nxt_byte != start_seq[0]:
-                        nxt_byte = int.from_bytes(conn.recv(1))
-
-                    match_idx = 0
-
-                    while match_idx < len(start_seq) - 1 and nxt_byte == start_seq[match_idx]:
-                        #print(f'Matched [{match_idx}]: {nxt_byte}')
-                        nxt_byte = int.from_bytes(conn.recv(1))
-
-                        match_idx += 1
-
-                    if match_idx == len(start_seq) - 1: # Match found!
-                        process_type = int.from_bytes(conn.recv(1))
-                        print(f'============== Process Type: [{process_type}]')
-
-                        if   process_type == 100: # Disconnect request
-                            break
-                        elif process_type == 101: # GenerateMasks request
-                            generate_masks(conn)
-                        elif process_type == 102: # GenerateBoxLayers request
-                            generate_box_layers(conn)
-                        elif process_type == 200: # GetStartupArgs request
-                            send_mask_creator_args(conn)
-                        else:
-                            print(f'Undefined process type: {process_type}')
-
-                    else: # Failed to match sequence
-                        # The current byte might be the actual first byte of start_seq
-                        dont_read_nxt = True
-                        continue
-                        
-            except IOError as e:
-                print(f'IO Error: {e}')
-
-            print(f'Disconnected with {addr}')
+if __name__ == '__main__':
+    # Disable werkzeug reloading. See https://stackoverflow.com/a/9476701/21178367
+    app.run(host=HOST, port=PORT, debug=True, use_reloader=False)

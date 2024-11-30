@@ -68,7 +68,7 @@ const getImagePixel = (elem, eX, eY) => {
   }
 
   return [ pixelX, pixelY ];
-}
+};
 
 const handleImageLoad = (e) => {
   var elem = e.target;
@@ -83,16 +83,18 @@ const handleImageLoad = (e) => {
     .then((blob) => {
         // Read the Blob as DataURL using the FileReader API
         const reader = new FileReader();
+
         reader.onloadend = () => {
             const b64 = reader.result.replace(/^data:(.+);base64,/, "");
             // Update image data
             props.imagedata.base64 = b64;
         };
+
         reader.readAsDataURL(blob);
     });
 
   console.log(`Image loaded, width: ${elem.naturalWidth}, height: ${elem.naturalHeight}`);
-}
+};
 
 const handleMouseMove = (e) => {
   const imPixel = getImagePixel(e.target, e.x, e.y);
@@ -157,14 +159,13 @@ const handleMouseLeave = (_) => {
 };
 
 const addBoxLayer = () => {
+  const dataUrl = createImageOfSize(props.imagedata.width, props.imagedata.height);
   const newLayer = {
     name: `Box Layer`,
     type: 'box_with_points',
     controls: [ ],
     selectedMaskIndex: 0,
-    maskImages: [
-      createImageOfSize(props.imagedata.width, props.imagedata.height)
-    ]
+    maskImages: [ dataUrl ]
   };
   props.maskdata.layerList.push(newLayer);
 
@@ -173,14 +174,13 @@ const addBoxLayer = () => {
 };
 
 const addPtsLayer = () => {
+  const dataUrl = createImageOfSize(props.imagedata.width, props.imagedata.height);
   const newLayer = {
     name: `Points Layer`,
     type: 'points',
     controls: [ ],
     selectedMaskIndex: 0,
-    maskImages: [
-      createImageOfSize(props.imagedata.width, props.imagedata.height)
-    ]
+    maskImages: [ dataUrl ]
   };
   props.maskdata.layerList.push(newLayer);
 
@@ -188,13 +188,95 @@ const addPtsLayer = () => {
   focusMaskLayer(newLayer, props.maskdata.layerList.length - 1);
 };
 
+function compositeImagesArray(maskDataUrls) {
+
+  // Create canvas elements
+  const resultCanvas = document.createElement('canvas');
+  const resultContext = resultCanvas.getContext('2d');
+
+  // Store image size
+  const width = props.imagedata.width;
+  const height = props.imagedata.height;
+  resultCanvas.width = width;
+  resultCanvas.height = height;
+
+  // Load images
+  const images = maskDataUrls.map(_ => new Image());
+
+  // Create canvases for each image (for reading pixel data)
+  const canvases = maskDataUrls.map(_ => {
+    const canvas = document.createElement('canvas');
+    canvas.width  = width;
+    canvas.height = height;
+
+    return canvas;
+  });
+  const contexts = canvases.map(canvas => canvas.getContext('2d'));
+
+  // Create result data
+  const resultData = resultContext.createImageData(width, height);
+
+  // Create a promise for each image, and resolve them by setting src for each image
+  const imageLoadPromises = maskDataUrls.map((base64, index) => new Promise((resolve, reject) => {
+    console.log(`Image load promise #${index}`);
+
+    images[index].addEventListener('load', () => {
+      console.log(`Mask image #${index} loaded`);
+      resolve();
+    });
+    images[index].addEventListener('error', () => {
+      console.error(`Mask image #${index} failed to load`);
+      reject();
+    });
+
+    images[index].src = base64;
+  }));
+
+  // Wait for all images to load
+  Promise.all(imageLoadPromises)
+    .then(() => {
+
+      // Draw each image onto their respective canvas
+      images.forEach((image, index) => {
+        contexts[index].drawImage(image, 0, 0);
+      });
+
+      // getImageData is an EXPENSIVE operation, DO NOT call this for every pixel!
+      const imageDatas = contexts.map(x => x.getImageData(0, 0, width, height));
+
+      // Go through each pixel on the image
+      for (let i = 0; i < resultData.data.length; i += 4) {
+        let red = 0, green = 0, blue = 0;
+
+        // For this pixel on each layer image
+        images.forEach((_, index) => {
+          const imgData = imageDatas[index];
+          red   += imgData.data[i];
+          green += imgData.data[i + 1];
+          blue  += imgData.data[i + 2];
+        });
+
+        resultData.data[i]     = Math.min(255, red);   // Red
+        resultData.data[i + 1] = Math.min(255, green); // Green
+        resultData.data[i + 2] = Math.min(255, blue);  // Blue
+        resultData.data[i + 3] = 255;                  // Alpha
+      }
+
+      // Write composite data back to result context
+      resultContext.putImageData(resultData, 0, 0);
+
+      // Convert composited image to data url
+      props.maskdata.maskPrevSrc = resultCanvas.toDataURL('image/png');
+    });
+}
+
 const createImageOfSize = (width, height) => {
   // https://stackoverflow.com/a/72783044/21178367
-  var canvas = document.createElement('canvas');
+  const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
 
-  var context = canvas.getContext('2d');
+  const context = canvas.getContext('2d');
   context.fillStyle = '#000'; // All black
   context.fillRect(0, 0, width, height);
 
@@ -210,9 +292,7 @@ const focusMaskLayer = (maskLayer, maskLayerIndex) => {
     props.maskdata.activeLayerIndex = maskLayerIndex;
 
     // Load and show layer controls
-    maskLayer.controls.forEach(control => {
-      addControlToSvg(maskGraphicRef.value, control);
-    });
+    maskLayer.controls.forEach(control => addControlToSvg(maskGraphicRef.value, control));
 
     // Update main view
     props.maskdata.maskPrevSrc = maskLayer.maskImages[maskLayer.selectedMaskIndex];
@@ -221,7 +301,8 @@ const focusMaskLayer = (maskLayer, maskLayerIndex) => {
     props.maskdata.activeLayerIndex = -1;
 
     // Update main view (Composite all mask layers)
-    props.maskdata.maskPrevSrc = '';
+    compositeImagesArray(props.maskdata
+      .layerList.map(x => x.maskImages[x.selectedMaskIndex]));
   }
 };
 
@@ -240,7 +321,8 @@ const removeMaskLayer = (maskLayerIndex) => {
       focusMaskLayer(null, -1); // No layer left, deselect
 
       // Update main view (Composite all mask layers)
-      props.maskdata.maskPrevSrc = '';
+      compositeImagesArray(props.maskdata
+        .layerList.map(x => x.maskImages[x.selectedMaskIndex]));
     }
   } else if (props.maskdata.activeLayerIndex > maskLayerIndex) { // Then move one left after removal
     props.maskdata.activeLayerIndex -= 1;

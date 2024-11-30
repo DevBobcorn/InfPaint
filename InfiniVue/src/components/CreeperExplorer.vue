@@ -344,15 +344,20 @@ const editMask = () => {
     fetch(`${fileServerHost}/savedmaskimg?path=${pathEncoded}`)
       .then(response => response.blob())
       .then(blob => {
-        if (blob.size > 0) {
-          let objectURL = URL.createObjectURL(blob);
+        if (blob.size <= 0) return;
+
+        // Read the Blob as DataURL using the FileReader API
+        const reader = new FileReader();
+        
+        reader.onloadend = function() {
+          const dataUrl = reader.result;
           // Add saved mask as a layer
           const savedLayer = {
             name: `Saved Layer`,
             type: 'image',
             controls: [ ],
             selectedMaskIndex: 0,
-            maskImages: [ objectURL ]
+            maskImages: [ dataUrl ]
           };
 
           // Update mask data
@@ -362,6 +367,8 @@ const editMask = () => {
           // Update main view
           explorerData.value.maskData.maskPrevSrc = savedLayer.maskImages[savedLayer.selectedMaskIndex];
         }
+
+        reader.readAsDataURL(blob);
       });
   } else {
     explorerData.value.maskData.editing = false;
@@ -551,7 +558,7 @@ const quitMaskEditor = () => {
         </el-button>
 
         <el-button class="main-file-view-button" @click="saveMask"
-                   v-if="explorerData.activeType == 'image' && explorerData.maskData.editing && explorerData.maskData.activeLayerIndex >= 0">
+                   v-if="explorerData.activeType == 'image' && explorerData.maskData.editing && explorerData.maskData.activeLayerIndex < 0">
           Save Mask
         </el-button>
 

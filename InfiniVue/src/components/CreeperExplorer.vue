@@ -397,6 +397,7 @@ const genLayerMask = () => {
       var pointCount = 0;
       var hasBox = false;
       var pointNums = [ ];
+      var boxNums = [ ];
 
       activeLayer.controls.forEach(control => {
         if (control.type == 'point') {
@@ -407,6 +408,7 @@ const genLayerMask = () => {
           if (!hasBox) {
             hasBox = true;
 
+            boxNums.push([ control.minX, control.minY, control.maxX, control.maxY ]);
           } else {
             control.log('A box has already been defined!');
           }
@@ -435,7 +437,7 @@ const genLayerMask = () => {
       }
 
       if (hasBox) {
-        // TODO
+        requestData.box = boxNums.join(',');
       }
 
       explorerData.value.imageData.messageText = 'Generating masks...';

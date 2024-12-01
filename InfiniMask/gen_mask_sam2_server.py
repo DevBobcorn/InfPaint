@@ -34,7 +34,7 @@ dino_model = load_dino_model(conf['dino_config'], conf['dino_model'])
 print('Loading SAM2...')
 sam_predictor = SAM2ImagePredictor(build_sam2(conf['sam_config'], conf['sam_model']))
 
-HOST = '192.168.1.102'
+HOST = '192.168.1.100'
 PORT = conf['mask_api_port']  # Port to listen on (non-privileged ports are > 1023)
 
 # Not sure what it is. See https://github.com/eriklindernoren/PyTorch-YOLOv3/issues/162

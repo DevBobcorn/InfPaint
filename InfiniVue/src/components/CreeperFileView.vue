@@ -1,5 +1,6 @@
 <script setup>
 import { useTemplateRef } from 'vue';
+import { ref } from 'vue';
 
 const prevImageRef = useTemplateRef('prev-image-ref');
 const maskGraphicRef = useTemplateRef('mask-graphic-ref');
@@ -30,7 +31,7 @@ const updateActiveFile = (newItem) => {
   emit('updateActiveFile', newItem.prev, newItem.path, 'file');
 };
 
-const getImagePixel = (elem, eX, eY) => {
+const getImagePixel = (elem, eX, eY, discardOutside = true) => {
   const rect = elem.getBoundingClientRect();
   const aspectRatioElm = elem.clientWidth / elem.clientHeight;
   const aspectRatioSrc = elem.naturalWidth / elem.naturalHeight;
@@ -64,7 +65,14 @@ const getImagePixel = (elem, eX, eY) => {
   var pixelY = Math.floor(domY * scaleRatio);
 
   if (pixelX < 0 || pixelX >= elem.naturalWidth || pixelY < 0 || pixelY >= elem.naturalHeight) {
-    return null;
+
+    if (discardOutside) { // Discard
+      return null;
+    } else { // Clamp
+      const pixelXClamped = Math.max(Math.min(pixelX, elem.naturalWidth - 1), 0);
+      const pixelYClamped = Math.max(Math.min(pixelY, elem.naturalHeight - 1), 0);
+      return [ pixelXClamped, pixelYClamped ];
+    }
   }
 
   return [ pixelX, pixelY ];
@@ -97,6 +105,11 @@ const handleImageLoad = (e) => {
 };
 
 const handleMouseMove = (e) => {
+  // drag event doesn't get fired properly, so we do it here
+  if (dragData.value.dragging) {
+    resizeBoxHint(e.target, e.x, e.y);
+  }
+
   const imPixel = getImagePixel(e.target, e.x, e.y);
   if (imPixel == null) {
     return handleMouseLeave(e);
@@ -106,9 +119,115 @@ const handleMouseMove = (e) => {
   props.imagedata.messageText = `${pixelX}, ${pixelY} (${e.target.naturalWidth}x${e.target.naturalHeight})`;
 };
 
+const dragData = ref({
+  dragging: false,
+  startX: null,
+  startY: null,
+
+  boxShape: null,
+});
+
+const handleDragStart = (e) => {
+  e.preventDefault();
+
+  const clampedImPixel = getImagePixel(e.target, e.x, e.y, false);
+  const [ pixelX, pixelY ] = clampedImPixel;
+
+  props.imagedata.messageText = `${pixelX}, ${pixelY} (${e.target.naturalWidth}x${e.target.naturalHeight})`;
+
+  if (props.maskdata.activeLayerIndex < 0) {
+    return;
+  }
+  const activeLayer = props.maskdata.layerList[props.maskdata.activeLayerIndex];
+
+  // Box layer allow only up to 1 box control, so check if we have one already
+  if (activeLayer.type != 'box_with_points' || activeLayer.controls.some(x => x.type == 'box')) {
+    return;
+  }
+
+  dragData.value.dragging = true;
+  dragData.value.startX = pixelX;
+  dragData.value.startY = pixelY;
+
+  const boxHint = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  boxHint.style.stroke = 'orange';
+  boxHint.style.strokeWidth = 5;
+  boxHint.style.fillOpacity = 0;
+
+  // Update selection box
+  boxHint.setAttribute('width', 0);
+  boxHint.setAttribute('height', 0);
+  boxHint.setAttribute('x', pixelX);
+  boxHint.setAttribute('y', pixelY);
+
+  dragData.value.boxShape = boxHint;
+  maskGraphicRef.value.appendChild(boxHint);
+};
+
+const handleTouchStart = (e) => {
+  const touch = e.changedTouches[0];
+
+  handleDragStart({
+    preventDefault: () => { },
+    target: e.target,
+    x: touch.clientX,
+    y: touch.clientY,
+  });
+};
+
+const handleTouchMove = (e) => {
+  const touch = e.changedTouches[0];
+
+  handleMouseMove({
+    target: e.target,
+    x: touch.clientX,
+    y: touch.clientY,
+  });
+};
+
+const handleTouchEnd = (e) => {
+  const touch = e.changedTouches[0];
+
+  if (dragData.value.dragging) {
+    handleClick({
+      target: e.target,
+      x: touch.clientX,
+      y: touch.clientY,
+    });
+  }
+};
+
+const resizeBoxHint = (elem, cursorX, cursorY) => {
+
+  const clampedImPixel = getImagePixel(elem, cursorX, cursorY, false);
+  const [ pixelX, pixelY ] = clampedImPixel;
+
+  if (props.maskdata.activeLayerIndex < 0) {
+    return;
+  }
+  const activeLayer = props.maskdata.layerList[props.maskdata.activeLayerIndex];
+
+  if (activeLayer.type != 'box_with_points') {
+    return;
+  }
+
+  const boxHint = dragData.value.boxShape;
+
+  const minX = Math.min(dragData.value.startX, pixelX);
+  const minY = Math.min(dragData.value.startY, pixelY);
+  const maxX = Math.max(dragData.value.startX, pixelX);
+  const maxY = Math.max(dragData.value.startY, pixelY);
+  
+  // Update selection box
+  boxHint.setAttribute('width', maxX - minX);
+  boxHint.setAttribute('height', maxY - minY);
+  boxHint.setAttribute('x', minX);
+  boxHint.setAttribute('y', minY);
+};
+
 const addControlToSvg = (svg, control) => {
   if (control.type == 'point') {
-    var newShape = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    const newShape = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
     newShape.setAttribute('cx', control.x);
     newShape.setAttribute('cy', control.y);
     newShape.setAttribute('r', 10);
@@ -116,29 +235,72 @@ const addControlToSvg = (svg, control) => {
 
     svg.appendChild(newShape);
   } else if (control.type == 'box') {
-    // TODO
+    const newShape = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    newShape.style.stroke = 'orange';
+    newShape.style.strokeWidth = 5;
+    newShape.style.fillOpacity = 0;
 
+    newShape.setAttribute('width', control.maxX - control.minX);
+    newShape.setAttribute('height', control.maxY - control.minY);
+    newShape.setAttribute('x', control.minX);
+    newShape.setAttribute('y', control.minY);
+
+    svg.appendChild(newShape);
   } else {
     control.log(`Unsupported control type: ${control.type}`);
   }
 };
 
 const handleClick = (e) => {
-  const imPixel = getImagePixel(e.target, e.x, e.y);
-  if (imPixel == null) {
-    return handleMouseLeave(e);
-  }
+  const imPixel = getImagePixel(e.target, e.x, e.y, false);
   const [ pixelX, pixelY ] = imPixel;
 
   props.imagedata.messageText = `${pixelX}, ${pixelY} (${e.target.naturalWidth}x${e.target.naturalHeight})`;
 
-  if (props.maskdata.activeLayerIndex >= 0) {
-    var activeLayer = props.maskdata.layerList[props.maskdata.activeLayerIndex];
+  if (props.maskdata.activeLayerIndex < 0) {
+    return;
+  }
+  const activeLayer = props.maskdata.layerList[props.maskdata.activeLayerIndex];
 
-    if (activeLayer.type != 'points' && activeLayer.type != 'box_with_points') {
-      return;
-    }
+  if (activeLayer.type != 'points' && activeLayer.type != 'box_with_points') {
+    return;
+  }
 
+  const minX = Math.min(dragData.value.startX, pixelX);
+  const minY = Math.min(dragData.value.startY, pixelY);
+  const maxX = Math.max(dragData.value.startX, pixelX);
+  const maxY = Math.max(dragData.value.startY, pixelY);
+
+  if (dragData.value.dragging) {
+    // Reset dragging flag
+    dragData.value.dragging = false;
+
+    const newBox = {
+      name: `Box (${minX}, ${minY}, ${maxX}, ${maxY})`,
+      type: 'box',
+      minX: minX,
+      minY: minY,
+      maxX: maxX,
+      maxY: maxY,
+    };
+
+    // Reset start point
+    dragData.value.startX = null;
+    dragData.value.startY = null;
+
+    // The shape is already there, just update it
+    const boxHint = dragData.value.boxShape;
+    boxHint.setAttribute('width', maxX - minX);
+    boxHint.setAttribute('height', maxY - minY);
+    boxHint.setAttribute('x', minX);
+    boxHint.setAttribute('y', minY);
+
+    dragData.value.boxShape = null; // Remove reference to this shape object
+
+    activeLayer.controls.push(newBox);
+
+    console.log(newBox);
+  } else {
     const pointLabel = true;
     const newPoint = {
       name: `Point (${pixelX}, ${pixelY}, ${pointLabel})`,
@@ -149,8 +311,9 @@ const handleClick = (e) => {
     };
 
     addControlToSvg(maskGraphicRef.value, newPoint);
-
     activeLayer.controls.push(newPoint);
+
+    console.log(newPoint);
   }
 };
 
@@ -242,18 +405,17 @@ function compositeImagesArray(maskDataUrls) {
       });
 
       // getImageData is an EXPENSIVE operation, DO NOT call this for every pixel!
-      const imageDatas = contexts.map(x => x.getImageData(0, 0, width, height));
+      const imageDataArray = contexts.map(x => x.getImageData(0, 0, width, height));
 
       // Go through each pixel on the image
       for (let i = 0; i < resultData.data.length; i += 4) {
         let red = 0, green = 0, blue = 0;
 
         // For this pixel on each layer image
-        images.forEach((_, index) => {
-          const imgData = imageDatas[index];
-          red   += imgData.data[i];
-          green += imgData.data[i + 1];
-          blue  += imgData.data[i + 2];
+        imageDataArray.forEach(imageData => {
+          red   += imageData.data[i];
+          green += imageData.data[i + 1];
+          blue  += imageData.data[i + 2];
         });
 
         resultData.data[i]     = Math.min(255, red);   // Red
@@ -363,6 +525,11 @@ const removeMaskControl = (maskControlIndex) => {
              @load="handleImageLoad"
              @mousemove="handleMouseMove"
              @click="handleClick"
+             @dragstart="handleDragStart"
+             @touchstart="handleTouchStart"
+             @touchmove="handleTouchMove"
+             @touchend="handleTouchEnd"
+             @touchcancel="handleTouchEnd"
              @mouseleave="handleMouseLeave" >
 
         <div class="main-file-view-overlay-div" v-if="maskdata.editing">

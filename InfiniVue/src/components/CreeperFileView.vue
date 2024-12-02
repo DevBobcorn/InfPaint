@@ -478,6 +478,10 @@ const removeMaskLayer = (maskLayerIndex) => {
     props.maskdata.activeLayerIndex -= 1;
 
     // Nothing else needs to be done
+  } else if (props.maskdata.activeLayerIndex < 0) {
+    // Update main view (Composite all mask layers)
+    compositeImagesArray(props.maskdata
+        .layerList.map(x => x.maskImages[x.selectedMaskIndex]));
   }
 };
 

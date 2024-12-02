@@ -532,6 +532,7 @@ defineExpose({
 
         <div class="main-file-view-overlay-div" v-if="maskdata.editing">
           <img class="main-file-view-overlay-image"
+               :style="`opacity: ${maskdata.opacity / 100}`"
                v-if="maskdata.maskPrevSrc != ''"
                :src="maskdata.maskPrevSrc" >
         </div>
@@ -662,7 +663,6 @@ defineExpose({
 .main-file-view-overlay-image {
   width: 100%;
   height: 100%;
-  opacity: 0.5;
   pointer-events: none;
 
   object-fit: contain;

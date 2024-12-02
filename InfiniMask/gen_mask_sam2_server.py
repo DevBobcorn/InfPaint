@@ -168,7 +168,7 @@ def generate_box_layers():
     box_scores = logits.numpy()
 
     result = { }
-    result['boxes'] = [ ]
+    result['box_layers'] = [ ]
 
     for i in range(sam_boxes.shape[0]):
         x1, y1 = int(sam_boxes[i][0]), int(sam_boxes[i][1])

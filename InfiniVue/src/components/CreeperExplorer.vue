@@ -83,7 +83,7 @@ const explorerData = ref({
 
   maskData: {
     editing: false,
-    opacity: 0.5,
+    opacity: 50,
     maskPrevSrc: '',
     activeLayerIndex: -1,
     dinoPrompt: 'aaa.bbb.ccc',
@@ -379,83 +379,55 @@ const genBoxLayers = () => {
   const maskdata = explorerData.value.maskData;
 
   if (maskdata.editing) {
-    if (!strValue) {
+    const dinoPrompt = explorerData.value.maskData.dinoPrompt;
 
+    if (!dinoPrompt) {
+      explorerData.value.imageData.messageText = 'Points and/or box prompts are required for segmentation.';
+
+      return;
     }
-  }
-};
 
-const genLayerMask = () => {
-  const maskdata = explorerData.value.maskData;
+    const requestData = {
+      'image_bytes': explorerData.value.imageData.base64,
+      'text_prompt': dinoPrompt
+    };
 
-  if (maskdata.editing) {
-    if (maskdata.layerList.length > maskdata.activeLayerIndex && maskdata.activeLayerIndex >= 0) {
-      
-      const activeLayer = maskdata.layerList[maskdata.activeLayerIndex];
+    explorerData.value.imageData.messageText = 'Generating box layers...';
 
-      // Request mask generation
-      var pointCount = 0;
-      var hasBox = false;
-      var pointNums = [ ];
-      var boxNums = [ ];
+    fetch(`${maskServerHost}/generate_box_layers`, {
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        method: "POST",
+        body: JSON.stringify(requestData)
+      })
+      .then(response => response.json())
+      .then(data => {
 
-      activeLayer.controls.forEach(control => {
-        if (control.type == 'point') {
-          pointNums.push([ control.x, control.y, control.label ? 1 : 0 ]);
+        data.box_layers.forEach(layerData => {
+          const minX = Math.min(layerData.x1, layerData.x2);
+          const minY = Math.min(layerData.y1, layerData.y2);
+          const maxX = Math.max(layerData.x1, layerData.x2);
+          const maxY = Math.max(layerData.y1, layerData.y2);
 
-          pointCount += 1;
-        } else if (control.type == 'box') {
-          if (!hasBox) {
-            hasBox = true;
+          const newBoxLayer = {
+            name: layerData.caption,
+            type: 'box_with_points',
+            controls: [
+              {
+                name: `Box (${minX}, ${minY}, ${maxX}, ${maxY})`,
+                type: 'box',
+                minX: minX,
+                minY: minY,
+                maxX: maxX,
+                maxY: maxY,
+              }
+            ]
+          };
 
-            boxNums.push([ control.minX, control.minY, control.maxX, control.maxY ]);
-          } else {
-            control.log('A box has already been defined!');
-          }
-        } else {
-          control.log(`Unsupported control type: ${control.type}`);
-        }
-      });
-
-      var controlFlag = 0;
-      if (pointCount > 0) controlFlag |= 1;
-      if (hasBox) controlFlag |= 2;
-
-      if (controlFlag == 0) {
-        explorerData.value.imageData.messageText = 'Points and/or box prompts are required for segmentation.';
-
-        return;
-      }
-
-      const requestData = {
-        'image_bytes': explorerData.value.imageData.base64,
-        'control_flag': controlFlag
-      };
-
-      if (pointCount > 0) {
-        requestData.points = pointNums.join(',');
-      }
-
-      if (hasBox) {
-        requestData.box = boxNums.join(',');
-      }
-
-      explorerData.value.imageData.messageText = 'Generating masks...';
-
-      fetch(`${maskServerHost}/generate_masks`, {
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          },
-          method: "POST",
-          body: JSON.stringify(requestData)
-        })
-        .then(response => response.json())
-        .then(data => {
-          //console.log(data.masks);
-
-          const images = data.masks.map(x => 'data:image/png;base64,' + x.bytes);
-          const scores = data.masks.map(x => x.score);
+          const images = layerData.masks.map(x => 'data:image/png;base64,' + x.bytes);
+          const scores = layerData.masks.map(x => x.score);
           var selectedIndex = 0;
           var highestScore = 0;
 
@@ -466,19 +438,114 @@ const genLayerMask = () => {
             }
           });
           
-          console.log(`Selected mask candidate #${selectedIndex}`);
+          console.log(`[${layerData.caption}] Selected mask candidate #${selectedIndex}`);
 
           // Update mask data
-          activeLayer.maskImages = images;
-          activeLayer.selectedMaskIndex = selectedIndex;
+          newBoxLayer.maskImages = images;
+          newBoxLayer.selectedMaskIndex = selectedIndex;
 
-          // Update main view
-          explorerData.value.maskData.maskPrevSrc = activeLayer.maskImages[activeLayer.selectedMaskIndex];
+          // Add this layer to layer list
+          explorerData.value.maskData.layerList.push(newBoxLayer);
+        })
+      });
+  }
+};
 
-          // Update message text
-          explorerData.value.imageData.messageText = `Generated ${data.masks.length} mask candidate(s). Scores: ${scores.join(' | ')}`;
-        });
+const genLayerMask = () => {
+  const maskdata = explorerData.value.maskData;
+
+  if (maskdata.editing) {
+    if (maskdata.layerList.length <= maskdata.activeLayerIndex || maskdata.activeLayerIndex < 0) {
+      return;
     }
+      
+    const activeLayer = maskdata.layerList[maskdata.activeLayerIndex];
+
+    // Request mask generation
+    var pointCount = 0;
+    var hasBox = false;
+    var pointNums = [ ];
+    var boxNums = [ ];
+
+    activeLayer.controls.forEach(control => {
+      if (control.type == 'point') {
+        pointNums.push([ control.x, control.y, control.label ? 1 : 0 ]);
+
+        pointCount += 1;
+      } else if (control.type == 'box') {
+        if (!hasBox) {
+          hasBox = true;
+
+          boxNums.push([ control.minX, control.minY, control.maxX, control.maxY ]);
+        } else {
+          control.log('A box has already been defined!');
+        }
+      } else {
+        control.log(`Unsupported control type: ${control.type}`);
+      }
+    });
+
+    var controlFlag = 0;
+    if (pointCount > 0) controlFlag |= 1;
+    if (hasBox) controlFlag |= 2;
+
+    if (controlFlag == 0) {
+      explorerData.value.imageData.messageText = 'Points and/or box prompts are required for segmentation.';
+
+      return;
+    }
+
+    const requestData = {
+      'image_bytes': explorerData.value.imageData.base64,
+      'control_flag': controlFlag
+    };
+
+    if (pointCount > 0) {
+      requestData.points = pointNums.join(',');
+    }
+
+    if (hasBox) {
+      requestData.box = boxNums.join(',');
+    }
+
+    explorerData.value.imageData.messageText = 'Generating masks...';
+
+    fetch(`${maskServerHost}/generate_masks`, {
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        method: "POST",
+        body: JSON.stringify(requestData)
+      })
+      .then(response => response.json())
+      .then(data => {
+
+        const images = data.masks.map(x => 'data:image/png;base64,' + x.bytes);
+        const scores = data.masks.map(x => x.score);
+        var selectedIndex = 0;
+        var highestScore = 0;
+
+        scores.forEach((score, i) => {
+          if (score > highestScore) {
+            selectedIndex = i;
+            highestScore = score;
+          }
+        });
+        
+        console.log(`Selected mask candidate #${selectedIndex}`);
+
+        // Update mask data
+        activeLayer.maskImages = images;
+        activeLayer.selectedMaskIndex = selectedIndex;
+
+        // Update main view
+        explorerData.value.maskData.maskPrevSrc = activeLayer.maskImages[activeLayer.selectedMaskIndex];
+
+        // Update message text
+        explorerData.value.imageData.messageText = '';
+        //explorerData.value.imageData.messageText = `Generated ${data.masks.length} mask candidate(s). Scores: ${scores.join(' | ')}`;
+      });
   }
 };
 
@@ -587,6 +654,9 @@ const quitMaskEditor = () => {
       </el-main>
       
       <div class="main-file-view-ops-bottom">
+        <el-slider v-model="explorerData.maskData.opacity"
+                   v-if="explorerData.activeType == 'image' && explorerData.maskData.editing"/>
+        
         <el-button class="main-file-view-button" @click="editMask"
                    v-if="explorerData.activeType == 'image' && !explorerData.maskData.editing">
           Edit Mask

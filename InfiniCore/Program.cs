@@ -6,6 +6,7 @@ using InfiniCore.FileTree;
 using InfiniCore.ImageHandle;
 using System.Net;
 using System.Net.Sockets;
+using System.Text.Json.Serialization;
 
 namespace InfiniCore
 {
@@ -37,6 +38,20 @@ namespace InfiniCore
 
                 NameOverrides = Array.Empty<string>();
             }
+        }
+
+        public class UpdateImageRequest
+        {
+            [JsonPropertyName("source_path")]
+            public required string SourcePath { get; set; }
+
+            [JsonPropertyName("image_base64")]
+            public required string ImageBase64 { get; set; }
+        }
+
+        private static bool IsFileVisible(string filePath)
+        {
+            return !filePath.EndsWith("_mask.png");
         }
 
         public static void Main(string[] args)
@@ -114,6 +129,10 @@ namespace InfiniCore
                 FileProvider = new PhysicalFileProvider(PathHelper.GetPageDirectory()),
                 RequestPath = new PathString(string.Empty),
                 ContentTypeProvider = new FileExtensionContentTypeProvider(),
+                OnPrepareResponse = context =>
+                {
+                    context.Context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
+                },
                 ServeUnknownFileTypes = true
             });
 
@@ -122,12 +141,16 @@ namespace InfiniCore
                 FileProvider = new PhysicalFileProvider(PathHelper.GetRootDirectory()),
                 RequestPath = new PathString("/files"),
                 ContentTypeProvider = new FileExtensionContentTypeProvider(),
+                OnPrepareResponse = context =>
+                {
+                    context.Context.Response.Headers.Append("Access-Control-Allow-Origin", "*");
+                },
                 ServeUnknownFileTypes = true
             });
 
             app.MapGet("/fileindex", (string? path) =>
             {
-                var data = FileTreeHelper.GetFileTree(PathHelper.GetRootDirectory(), path ?? "");
+                var data = FileTreeHelper.GetFileTree(PathHelper.GetRootDirectory(), path ?? "", x => IsFileVisible(x));
                 var tree = TreeDataBuilder.BuildTree(data);
                 
                 return Results.Json(tree);
@@ -149,6 +172,15 @@ namespace InfiniCore
                 return Results.File(bytes, fileDownloadName: "mask.png");
             })
             .WithName("GetSavedMaskImage");
+
+            app.MapPost("/updatemaskimg", (UpdateImageRequest updateData) =>
+            {
+                Console.WriteLine($"Updating mask image for {updateData.SourcePath}");
+                var path = updateData.SourcePath;
+                var bytes = Convert.FromBase64String(updateData.ImageBase64);
+
+                MaskImageHelper.StoreMaskImagePath(PathHelper.GetRootDirectory(), path, bytes);
+            });
 
             app.MapGet("/maskserver", () =>
             {

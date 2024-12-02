@@ -5,11 +5,6 @@ import { ref } from 'vue';
 const prevImageRef = useTemplateRef('prev-image-ref');
 const maskGraphicRef = useTemplateRef('mask-graphic-ref');
 
-defineExpose({
-  prevImageRef,
-  maskGraphicRef
-});
-
 const props = defineProps([
   'staticroot',
   'activeprev',
@@ -298,8 +293,6 @@ const handleClick = (e) => {
     dragData.value.boxShape = null; // Remove reference to this shape object
 
     activeLayer.controls.push(newBox);
-
-    console.log(newBox);
   } else {
     const pointLabel = true;
     const newPoint = {
@@ -312,8 +305,6 @@ const handleClick = (e) => {
 
     addControlToSvg(maskGraphicRef.value, newPoint);
     activeLayer.controls.push(newPoint);
-
-    console.log(newPoint);
   }
 };
 
@@ -381,10 +372,7 @@ function compositeImagesArray(maskDataUrls) {
 
   // Create a promise for each image, and resolve them by setting src for each image
   const imageLoadPromises = maskDataUrls.map((base64, index) => new Promise((resolve, reject) => {
-    console.log(`Image load promise #${index}`);
-
     images[index].addEventListener('load', () => {
-      console.log(`Mask image #${index} loaded`);
       resolve();
     });
     images[index].addEventListener('error', () => {
@@ -449,7 +437,7 @@ const focusMaskLayer = (maskLayer, maskLayerIndex) => {
   // Clear all layer controls
   maskGraphicRef.value.innerHTML = '';
   
-  if (props.maskdata.activeLayerIndex != maskLayerIndex) {
+  if (props.maskdata.activeLayerIndex != maskLayerIndex && -1 != maskLayerIndex) {
     console.log(`Selected [${maskLayerIndex}] ${maskLayer.name}`);
     props.maskdata.activeLayerIndex = maskLayerIndex;
 
@@ -509,6 +497,12 @@ const removeMaskControl = (maskControlIndex) => {
     });
   }
 };
+
+defineExpose({
+  focusMaskLayer,
+  prevImageRef,
+  maskGraphicRef
+});
 
 </script>
 

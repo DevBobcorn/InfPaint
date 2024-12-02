@@ -427,7 +427,7 @@ const genLayerMask = () => {
         return;
       }
 
-      var requestData = {
+      const requestData = {
         'image_bytes': explorerData.value.imageData.base64,
         'control_flag': controlFlag
       };
@@ -482,9 +482,42 @@ const genLayerMask = () => {
   }
 };
 
-const saveMask = () => {
-  // Request using POST method
+const defocusLayer = () => {
+  // Not very elegant but...
+  fileViewRef.value.focusMaskLayer(null, -1);
+};
 
+const saveMask = () => {
+  const srcPath = explorerData.value.activePath;
+  const maskDataUrl = explorerData.value.maskData.maskPrevSrc;
+
+  if (!srcPath) {
+    explorerData.value.imageData.messageText = 'No file is currently active!';
+    return;
+  }
+
+  if (!maskDataUrl || !maskDataUrl.startsWith('data:')) {
+    explorerData.value.imageData.messageText = 'Mask image data is not available!';
+    return;
+  }
+
+  const requestData = {
+    // Path of the source image, not the mask image
+    source_path: srcPath,
+    image_base64: maskDataUrl.replace(/^data:(.+);base64,/, "")
+  };
+
+  fetch(`${fileServerHost}/updatemaskimg`, {
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      method: "POST",
+      body: JSON.stringify(requestData)
+    })
+    .then(() => {
+      // Update message text
+      explorerData.value.imageData.messageText = 'Mask image saved';
+    });
 };
 
 const quitMaskEditor = () => {
@@ -495,7 +528,7 @@ const quitMaskEditor = () => {
   explorerData.value.maskData.activeLayerIndex = -1;
   
   // Clear mask graphic
-  var maskGraphic = fileViewRef.value.maskGraphicRef;
+  const maskGraphic = fileViewRef.value.maskGraphicRef;
   maskGraphic.innerHTML = '';
 };
 </script>
@@ -565,8 +598,13 @@ const quitMaskEditor = () => {
         </el-button>
 
         <el-button class="main-file-view-button" @click="quitMaskEditor"
-                   v-if="explorerData.activeType == 'image' && explorerData.maskData.editing">
+                   v-if="explorerData.activeType == 'image' && explorerData.maskData.editing && explorerData.maskData.activeLayerIndex < 0">
           Quit Editor
+        </el-button>
+
+        <el-button class="main-file-view-button" @click="defocusLayer"
+                   v-if="explorerData.activeType == 'image' && explorerData.maskData.editing && explorerData.maskData.activeLayerIndex >= 0">
+          Defocus
         </el-button>
         
         <el-button class="main-file-view-button" @click="popFileTreeShown = true"

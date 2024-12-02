@@ -52,13 +52,8 @@ namespace InfiniCore.FileTree
             throw new FileNotFoundException($"No file or folder found at {fullPath}");
         }
 
-        public static Dictionary<string, FileTreeNode> GetFileTree(string fileServerRoot, string path)
+        public static Dictionary<string, FileTreeNode> GetFileTree(string fileServerRoot, string path, Func<string, bool> filter)
         {
-            static bool isFileVisible(string fileName)
-            {
-                return !fileName.EndsWith("_mask.png");
-            };
-
             if (Directory.Exists(fileServerRoot))
             {
                 try
@@ -71,8 +66,7 @@ namespace InfiniCore.FileTree
                     Console.WriteLine($"Requesting entries under {fileServerRoot}/{path}");
 
                     var entries = Directory.EnumerateFileSystemEntries(Path.Combine(fileServerRoot, path), "*", SearchOption.TopDirectoryOnly)
-                        .Where(x => isFileVisible(Path.GetFileName(x)))
-                        .ToDictionary(x => Path.GetFileName(x), x => GetFileNode(path, Path.GetFullPath(x).Replace('\\', '/')));
+                        .Where(x => filter(x)).ToDictionary(x => Path.GetFileName(x), x => GetFileNode(path, Path.GetFullPath(x).Replace('\\', '/')));
 
                     return entries;
                 }

@@ -82,6 +82,7 @@ const explorerData = ref({
   },
 
   maskData: {
+    showMask: true,
     editing: false,
     opacity: 50,
     maskPrevSrc: '',
@@ -126,14 +127,16 @@ const updateActiveNode = (filePrev, filePath, nodeType) => {
   explorerData.value.activePrev = filePrev;
   explorerData.value.activePath = filePath;
 
-  if (explorerData.value.maskData.editing) {
+  if (explorerData.value.maskData.editing || explorerData.value.maskData.showMask) {
     // Quit editor and reset all data
     explorerData.value.maskData.editing = false;
     explorerData.value.maskData.maskPrevSrc = '';
     explorerData.value.maskData.layerList = [ ];
     explorerData.value.maskData.activeLayerIndex = -1;
     // Clear mask graphic
-    fileViewRef.value.maskGraphicRef.innerHTML = '';
+    if (fileViewRef.value.maskGraphicRef) {
+      fileViewRef.value.maskGraphicRef.innerHTML = '';
+    }
   }
 
   var fileType = '???';
@@ -153,6 +156,24 @@ const updateActiveNode = (filePrev, filePath, nodeType) => {
     explorerData.value.imageData.height = 0;
     // Reset image data
     explorerData.value.imageData.base64 = '';
+  } else {
+    // Update mask for active image
+    const pathEncoded = encodeURIComponent(filePath);
+    fetch(`${fileServerHost}/savedmaskimg?path=${pathEncoded}`)
+      .then(response => response.blob())
+      .then(blob => {
+        if (blob.size <= 0) return;
+
+        // Read the Blob as DataURL using the FileReader API
+        const reader = new FileReader();
+        
+        reader.onloadend = function() {
+          // Don't update mask data, only update main view
+          explorerData.value.maskData.maskPrevSrc = reader.result;
+        }
+
+        reader.readAsDataURL(blob);
+      });
   }
 
   if (useMobileLayout && fileType != 'folder') { // Tapped on a file instead of a folder
@@ -677,8 +698,13 @@ const quitMaskEditor = () => {
       
       <div class="main-file-view-ops-bottom">
         <el-slider v-model="explorerData.maskData.opacity"
-                   v-if="explorerData.activeType == 'image' && explorerData.maskData.editing"/>
+                   v-if="explorerData.activeType == 'image' && (explorerData.maskData.editing || explorerData.maskData.showMask)"/>
         
+        <el-button class="main-file-view-button" @click="explorerData.maskData.showMask = !explorerData.maskData.showMask"
+                   v-if="explorerData.activeType == 'image' && !explorerData.maskData.editing">
+          {{ explorerData.maskData.showMask ? 'Hide Mask' : 'Show Mask' }}
+        </el-button>
+
         <el-button class="main-file-view-button" @click="editMask"
                    v-if="explorerData.activeType == 'image' && !explorerData.maskData.editing">
           Edit Mask

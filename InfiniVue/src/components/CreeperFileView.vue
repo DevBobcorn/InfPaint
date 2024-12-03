@@ -530,7 +530,7 @@ defineExpose({
              @touchcancel="handleTouchEnd"
              @mouseleave="handleMouseLeave" >
 
-        <div class="main-file-view-overlay-div" v-if="maskdata.editing">
+        <div class="main-file-view-overlay-div" v-if="maskdata.editing || maskdata.showMask">
           <img class="main-file-view-overlay-image"
                :style="`opacity: ${maskdata.opacity / 100}`"
                v-if="maskdata.maskPrevSrc != ''"

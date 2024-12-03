@@ -214,14 +214,6 @@ def generate_box_layers():
     return jsonify(result)
 
 
-@app.route('/mask_creator_args')
-def mask_creator_args():
-    return jsonify({
-        'proc_dir': conf['dir_i'],
-        'dino_prompt': conf['dino_prompt']
-    })
-
-
 if __name__ == '__main__':
     # Disable werkzeug reloading. See https://stackoverflow.com/a/9476701/21178367
     app.run(host=HOST, port=PORT, debug=True, use_reloader=False)

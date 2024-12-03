@@ -1,5 +1,5 @@
 {
-    "api": "http://127.0.0.1:7860",
+    "sd_api": "http://127.0.0.1:7860",
     "mask_api_port": 7880,
     
     "accept_types": [
@@ -8,12 +8,10 @@
 
     "dino_config": "models/grounding-dino/GroundingDINO_SwinT_OGC.py",
     "dino_model": "models/grounding-dino/groundingdino_swint_ogc.pth",
-    "dino_prompt": "",
-    "dino2sam_target_object": "",
-    "dino2sam_as_point": "",
-    "dino2sam_ignore": "",
+
     "sam_config": "configs/sam2/sam2_hiera_l.yaml",
     "sam_model": "models/sam2/sam2_hiera_large.pt",
+
     "mask_gen_device": "cuda",
 
     "output_name_format": "{}_out[{}].png",

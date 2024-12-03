@@ -437,7 +437,7 @@ const focusMaskLayer = (maskLayer, maskLayerIndex) => {
   // Clear all layer controls
   maskGraphicRef.value.innerHTML = '';
   
-  if (props.maskdata.activeLayerIndex != maskLayerIndex && -1 != maskLayerIndex) {
+  if (props.maskdata.activeLayerIndex != maskLayerIndex && maskLayerIndex >= 0) {
     console.log(`Selected [${maskLayerIndex}] ${maskLayer.name}`);
     props.maskdata.activeLayerIndex = maskLayerIndex;
 

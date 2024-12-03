@@ -189,8 +189,8 @@ def img2img(image_path, mask_path, seed, output_path):
 import glob, os
 
 handled_extn_names = conf['accept_types']
-dir_i = conf['dir_i']
-dir_o = conf['dir_o']
+dir_i = conf['inpaint_dir_i']
+dir_o = conf['inpaint_dir_o']
 
 if not os.path.exists(dir_o):
     os.mkdir(dir_o)
@@ -204,7 +204,7 @@ for file in glob.glob(f'{dir_i}/*'):
     extn_name = file_name[extn_index:].lower()
 
     seeds = [42, 1337, 2077]
-    output_name_format = conf['output_name_format']
+    output_name_format = conf['inpaint_name_format']
 
     if not base_name.endswith('_mask') and extn_name in handled_extn_names:
         print(f'Processing [{base_name}][{extn_name}]...')

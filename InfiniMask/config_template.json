@@ -1,10 +1,11 @@
 {
-    "sd_api": "http://127.0.0.1:7860",
+    "mask_api_host": "192.168.1.42",
     "mask_api_port": 7880,
     
     "accept_types": [
         ".png", ".jpg", ".jpeg", ".webp"
     ],
+    "dino_default_prompt": "",
 
     "dino_config": "models/grounding-dino/GroundingDINO_SwinT_OGC.py",
     "dino_model": "models/grounding-dino/groundingdino_swint_ogc.pth",
@@ -14,7 +15,10 @@
 
     "mask_gen_device": "cuda",
 
-    "output_name_format": "{}_out[{}].png",
+    "inpaint_api": "http://192.168.1.42:7860",
+    "inpaint_dir_in": "",
+    "inpaint_dir_out": "",
+    "inpaint_name_format": "{}_out[{}].png",
 
     "pos_prompt": "",
     "neg_prompt": "",

@@ -298,6 +298,13 @@ onMounted(() => {
     .then(h => {
       maskServerHost = h;
       console.log(`Got mask host: ${maskServerHost}`);
+
+      fetch(`${maskServerHost}/dino_default_prompt`)
+        .then(response => response.text())
+        .then(p => {
+          explorerData.value.maskData.dinoPrompt = p;
+          console.log(`Got default DINO prompt: ${p}`);
+        });
     });
   
   fetch(`${fileServerHost}/inpaintserver`)
@@ -446,7 +453,13 @@ const genBoxLayers = () => {
 
           // Add this layer to layer list
           explorerData.value.maskData.layerList.push(newBoxLayer);
-        })
+        });
+
+        // Update mask composition if not focused
+        if (explorerData.value.maskData.activeLayerIndex < 0) {
+          // Not very elegant but...
+          fileViewRef.value.focusMaskLayer(null, -1);
+        }
       });
   }
 };

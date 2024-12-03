@@ -409,7 +409,10 @@ const genBoxLayers = () => {
         method: "POST",
         body: JSON.stringify(requestData)
       })
-      .then(response => response.json())
+      .then(response => response.json(), _ => {
+        // Update message text
+        explorerData.value.imageData.messageText = 'Request failed';
+      })
       .then(data => {
 
         data.box_layers.forEach(layerData => {
@@ -454,6 +457,9 @@ const genBoxLayers = () => {
           // Add this layer to layer list
           explorerData.value.maskData.layerList.push(newBoxLayer);
         });
+
+        // Update message text
+        explorerData.value.imageData.messageText = '';
 
         // Update mask composition if not focused
         if (explorerData.value.maskData.activeLayerIndex < 0) {
@@ -531,7 +537,10 @@ const genLayerMask = () => {
         method: "POST",
         body: JSON.stringify(requestData)
       })
-      .then(response => response.json())
+      .then(response => response.json(), _ => {
+        // Update message text
+        explorerData.value.imageData.messageText = 'Request failed';
+      })
       .then(data => {
 
         const images = data.masks.map(x => 'data:image/png;base64,' + x.bytes);

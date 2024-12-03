@@ -1,5 +1,5 @@
 {
-    "mask_api_host": "192.168.1.42",
+    "mask_api_host": "192.168.1.100",
     "mask_api_port": 7880,
     
     "accept_types": [
@@ -16,12 +16,11 @@
     "mask_gen_device": "cuda",
 
     "inpaint_api": "http://192.168.1.42:7860",
-    "inpaint_dir_in": "",
-    "inpaint_dir_out": "",
-    "inpaint_name_format": "{}_out[{}].png",
+    "inpaint_dir_i": "",
+    "inpaint_dir_o": "",
+    "inpaint_name_format": "{}_out_{}.png",
 
-    "pos_prompt": "",
-    "neg_prompt": "",
-
-    "resize_longer_side": 768
+    "inpaint_pos_prompt": "",
+    "inpaint_neg_prompt": "",
+    "inpaint_resize_longer_side": 768
 }

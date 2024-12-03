@@ -8,9 +8,9 @@ import io
 import base64
 from PIL import Image
 
-pos_prompt = conf['pos_prompt']
-neg_prompt = conf['neg_prompt']
-api = conf['api']
+pos_prompt = conf['inpaint_pos_prompt']
+neg_prompt = conf['inpaint_neg_prompt']
+api = conf['inpaint_api']
 
 def img2img(image_path, mask_path, seed, output_path):
     api_url = f"{api}/sdapi/v1/img2img"
@@ -19,7 +19,7 @@ def img2img(image_path, mask_path, seed, output_path):
         image_data = file.read()
         image_pil = Image.open(file)
 
-        longer_side = int(conf['resize_longer_side'])
+        longer_side = int(conf['inpaint_resize_longer_side'])
 
         # Scale down
         if image_pil.width >= image_pil.height:
@@ -85,7 +85,7 @@ def img2img(image_path, mask_path, seed, output_path):
                         "model": "control_v11p_sd15_inpaint [ebff9138]",
                         #"image": encoded_mask,
 
-                        "processor_res": 0.5,
+                        "processor_res": 512,
 
                         "control_mode": "Balanced",
                         "guidance_end": 1.0,

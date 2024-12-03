@@ -6,7 +6,7 @@ with open("config.json") as f:
 import requests
 import io
 import base64
-from PIL import Image
+from PIL import Image, ImageFilter
 
 pos_prompt = conf['inpaint_pos_prompt']
 neg_prompt = conf['inpaint_neg_prompt']
@@ -41,6 +41,11 @@ def img2img(image_path, mask_path, seed, output_path):
         mask_pil = Image.open(file)
         # Scale down
         mask_pil = mask_pil.resize((image_w, image_h), Image.Resampling.LANCZOS)
+
+        # Dilate and blur the mask
+        mask_pil = mask_pil.filter(ImageFilter.MaxFilter(7))
+        mask_pil = mask_pil.filter(ImageFilter.GaussianBlur(3))
+
         # Assign back to file binary
         img_byte_arr = io.BytesIO()
         mask_pil.save(img_byte_arr, format='PNG')
@@ -124,7 +129,7 @@ def img2img(image_path, mask_path, seed, output_path):
             },
             "Soft Inpainting": {
                 "args": [
-                    False,
+                    True,
                     1,
                     0.5,
                     4,

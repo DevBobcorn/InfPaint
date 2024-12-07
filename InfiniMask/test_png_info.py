@@ -3,7 +3,7 @@ import re
 import json
 
 #img = Image.open('C:/Users/DevBo/Downloads/00000-3206416230.png')
-img = Image.open('G:/BulkMagic/test/2373_bare/1_bare[42].png')
+img = Image.open('G:/BulkMagic/test/11227_out/1_out_2077.png')
 
 img.load() # necessary for png images to prepare the info data
 

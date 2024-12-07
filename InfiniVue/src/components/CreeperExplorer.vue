@@ -197,11 +197,13 @@ const updatePreviewListForFolder = (folderNode) => {
       if (fileType == 'image') { // Image file, add it to preview list
         newPrevList.push({
           prev: `${fileServerHost}/files${childNodeData.filePath}`,
+          name: childNodeData.name,
           path: childNodeData.filePath
         });
       } else if (fileType == 'video') { // Video file, add it to preview list
         newPrevList.push({
           prev: FILE_VIDEO_PREV,
+          name: childNodeData.name,
           path: childNodeData.filePath
         });
       }

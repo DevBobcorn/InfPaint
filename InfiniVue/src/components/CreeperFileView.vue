@@ -566,6 +566,7 @@ defineExpose({
           :key="item" @click="updateActiveFile(item)"
           :class="[{ 'active_prev_item': item.path == activepath }, 'prev_item']">
           <img :src="item.prev" class="scrollbar-item-image-view">
+          <p>{{ item.name }}</p>
         </el-button>
       </div>
     </el-scrollbar>

@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using NaturalSort.Extension;
+using System.Text.Json;
 
 namespace InfiniCore.FileTree
 {
@@ -58,7 +59,7 @@ namespace InfiniCore.FileTree
             {
                 try
                 {
-                    if (path.StartsWith("/") || path.StartsWith("\\"))
+                    if (path.StartsWith('/') || path.StartsWith('\\'))
                     {
                         path = path[1..];
                     }
@@ -66,13 +67,14 @@ namespace InfiniCore.FileTree
                     Console.WriteLine($"Requesting entries under {fileServerRoot}/{path}");
 
                     var entries = Directory.EnumerateFileSystemEntries(Path.Combine(fileServerRoot, path), "*", SearchOption.TopDirectoryOnly)
+                        .OrderBy(x => Path.GetFileName(x), StringComparison.OrdinalIgnoreCase.WithNaturalSort())
                         .Where(x => filter(x)).ToDictionary(x => Path.GetFileName(x), x => GetFileNode(path, Path.GetFullPath(x).Replace('\\', '/')));
 
                     return entries;
                 }
                 catch (Exception)
                 {
-                    return new Dictionary<string, FileTreeNode>();
+                    return [];
                 }
             }
 

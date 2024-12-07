@@ -731,6 +731,9 @@ defineExpose({
 
 .prev_item p {
   font-size: 10px;
+  width: 100%;
+  height: 30px;
+  overflow: hidden;
   position: absolute;
   top: -25px;
   left: 0px;

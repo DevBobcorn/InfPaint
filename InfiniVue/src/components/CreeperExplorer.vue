@@ -214,6 +214,10 @@ const updatePreviewListForFolder = (folderNode) => {
 };
 
 const handleNodeClick = async (fileTree, nodeData, treeNode) => {
+  if (nodeData.dummy) { // Ignore dummy nodes
+    return;
+  }
+
   if (nodeData.type == 'folder') {
     updateActiveNode(FOLDER_PREV, nodeData.filePath, 'folder');
 
@@ -295,7 +299,7 @@ const convertNodeData = (basePath, nodeData) => {
         node.children = [ ];
         node.children_loaded = true;
       } else {
-        node.children = [ { type: "file", name: "Loading" } ];
+        node.children = [ { type: "file", dummy: true, name: "Loading..." } ];
         node.children_loaded = false;
       }
     }

@@ -82,7 +82,7 @@ const explorerData = ref({
   },
 
   maskData: {
-    showMask: true,
+    showMask: false,
     editing: false,
     opacity: 50,
     maskPrevSrc: '',
@@ -392,9 +392,8 @@ const editMask = () => {
 
           // Update mask data
           explorerData.value.maskData.layerList = [ savedLayer ];
-          explorerData.value.maskData.activeLayerIndex = 0; // Select this saved mask layer
 
-          // Update main view
+          // Update main view (composition would contain just this one layer, so just use the received image instead)
           explorerData.value.maskData.maskPrevSrc = savedLayer.maskImages[savedLayer.selectedMaskIndex];
         }
 

@@ -560,7 +560,7 @@ defineExpose({
 
     </div>
 
-    <el-scrollbar v-if="!maskdata.editing">
+    <el-scrollbar v-show="!maskdata.editing">
       <div class="scrollbar-flex-content">
         <el-button plain v-for="item in prevlist"
           :key="item" @click="updateActiveFile(item)"
